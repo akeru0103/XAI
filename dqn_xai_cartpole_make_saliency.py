@@ -1,5 +1,5 @@
 '''dqn settings'''
-EPISODE_NUMBER = 1000
+EPISODE_NUMBER = 20
 
 '''saliency settings'''
 SALIENCY_ROUGHNESS = 4
@@ -7,9 +7,9 @@ SALIENCY_ROUGHNESS = 4
 '''ndarray save dettings'''
 SAVE_SCREEN = False
 SAVE_FREQUENCY = 5 #何エピソードごとに各種画像のndarrayを作成するか
-START_DURATION = 100
-START_SAVE_FREQUENCY = 10
-END_DURATION = 10
+START_DURATION = 6
+START_SAVE_FREQUENCY = 3
+END_DURATION = 6
 END_SAVE_FREQUENCY = 3
 
 
@@ -33,8 +33,6 @@ import torchvision.transforms as T
 
 from scipy.ndimage.filters import gaussian_filter
 import os
-#import cv2
-#import copy
 import pickle
 from statistics import mean
 
@@ -50,7 +48,6 @@ plt.ion()
 # if gpu is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #device:gpuとcpuのどちらを使うのか
-
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
@@ -116,8 +113,6 @@ def get_screen():
     if SAVE_SCREEN==True and save_screen==True and i_episode % SAVE_FREQUENCY==0:
         screen_sequence.append(screen/255)
 
-    #screen_sequence.append(screen/255)
-
     screen = screen[:, 160:320]
     #縦の、159以下と321以上を捨てる
     #screenの各次元の要素数:(3,160,600)
@@ -127,22 +122,12 @@ def get_screen():
 
     cart_location = get_cart_location()
     if cart_location < view_width // 2:
-        #カート<160
-
         slice_range = slice(view_width)
-        #多分160より左をslice_rangeとして指定している
-
     elif cart_location > (screen_width - view_width // 2):
-        #600-160=440<カート
-
         slice_range = slice(-view_width, None)
-        #多分600-160=440より右をslice_rangeとして指定している
-
     else:
         slice_range = slice(cart_location - view_width // 2,
                             cart_location + view_width // 2)
-        #多分カートの左右160をslice_rangeとして指定している
-
     # Strip off(はがす) the edges, so that we have a square image centered on a cart
     screen = screen[:, :, slice_range]
     #多分カートの左右160をスクリーンとして切り出している
@@ -152,13 +137,8 @@ def get_screen():
     # Convert to float, rescare, convert to torch tensor
     # (this doesn't require a copy)
     screen = np.ascontiguousarray(screen, dtype=np.float32) / 255
-    #floatにして、0~255のレンジを0~1にした
-    #screenの各次元の要素数:(3,160,320)
-    #screenの全要素数153600
 
     screen = torch.from_numpy(screen)
-    #torch.from_numpy(screen)はscreenという名のndarrayからtensorを作成
-    #screenという名のテンソルの要素数は153600
 
     # Resize, and add a batch dimension (BCHW)
     return resize(screen).unsqueeze(0).to(device)
@@ -406,10 +386,7 @@ def make_saliency_map(image, mask_sigma, blurred_sigma, decimation_rate):
             perturbed_state = torch.from_numpy(perturbed_state)
             perturbed_state = perturbed_state.unsqueeze(0).to(device).float()
             perturbed_q = policy_net(perturbed_state)
-
-            #saliency_map[:, int(j/decimation_rate),int(i/decimation_rate)] = ( np.array(max_color)-np.array(min_color) )*( float((normal_q-perturbed_q).pow(2).sum().mul_(0.5)) /255 ) + np.array(min_color)*(1/255)*0.6
             saliency_map[int(j/decimation_rate), int(i/decimation_rate)] = float( (normal_q-perturbed_q).pow(2).sum().mul_(0.5) )
-
     return saliency_map
 
 def decision_of_save(episode_num, average_of_reward, episode_per_saliency_start, episode_per_saliency_duration_start, episode_per_saliency_end, episode_per_saliency_duration_end):
@@ -423,11 +400,7 @@ def decision_of_save(episode_num, average_of_reward, episode_per_saliency_start,
     elif EPISODE_NUMBER - episode_per_saliency_duration_end <= episode_num:
         if episode_num % episode_per_saliency_end == 0:
             saliency_save_flag = True
-    #elif max(average_of_reward[episode_per_saliency_duration_start-2:-2]) < average_of_reward[-1]:
     elif episode_num == episode_per_saliency_duration_start or max(average_of_reward[episode_per_saliency_duration_start:-1]) < average_of_reward[-1]:
-        print(average_of_reward)
-        #print(average_of_reward[episode_per_saliency_duration_start:-1])
-        #print(average_of_reward[-1])
         saliency_save_flag = True
     return saliency_save_flag
 
@@ -435,8 +408,6 @@ def decision_of_save(episode_num, average_of_reward, episode_per_saliency_start,
 num_episodes = EPISODE_NUMBER
 saliency_calcuration_rate = SALIENCY_ROUGHNESS
 
-frame_num = 0
-#プログラム開始から何フレーム目か
 
 saliency_map_sequence = []
 input_sequence = []
@@ -459,30 +430,9 @@ for i_episode in range(num_episodes):
     save_screen = True
     state = current_screen - last_screen
 
-    #subtotal_reward = 0
-
-
-    '''
-    #1エピソード目に行う処理
-    if i_episode == 0:
-        make_perturbed_image(state.squeeze(),(20,40),4,3,save=True)
-        print(' filter images were saved')
-        #フィルターのサンプル画像を保存
-    '''
-
-    #print(ave_max)
-    #print(ave)
-
-
     if ave > ave_max and i_episode >= START_DURATION+1:
         #saliency_save_flag = True
         ave_max = ave
-
-
-
-
-
-
 
     #1ステップ目開始
     for t in count():
@@ -494,35 +444,19 @@ for i_episode in range(num_episodes):
             print(' filter images were saved')
             #フィルターのサンプル画像を保存
 
-        '''
-        if i_episode % SAVE_FREQUENCY == 0: #i_episode=0,5,10...=1,6,11...エピソード目
-            saliency_map_sequence.append( make_saliency_map(state, 4, 3, saliency_calcuration_rate ).numpy() )
-            input_sequence.append( current_screen.numpy().squeeze() )
-            saliency_save_flag = True
-        '''
-
         if saliency_save_flag == True: #i_episode=0,5,10...=1,6,11...エピソード目
             saliency_map_sequence.append( make_saliency_map(state, 4, 3, saliency_calcuration_rate ) )
             input_sequence.append( current_screen.cpu().numpy().squeeze() )
 
-        frame_num += 1
-
         # Select and perform an action
         action = select_action(state)
         #action:0が左で1が右に動かす
-
-
         _, reward, done, _ = env.step(action.item())
         reward = torch.tensor([reward], device=device)
-
-        #
-        #subtotal_reward = subtotal_reward + reward
-        #
 
         # Observe new state
         last_screen = current_screen
         current_screen = get_screen()
-
         if not done:
             next_state = current_screen - last_screen
         else:
@@ -537,41 +471,28 @@ for i_episode in range(num_episodes):
         # Perform one step of the optimization (on the target network)
         optimize_model()
 
-        #1エピソード終了時のdurationのプロット
+        #1エピソード終了時の動作
         if done:
-            '''
-            if i_episode % SAVE_FREQUENCY == 0: #i_episode=0,5,10...=1,6,11...エピソード目
-                saliency_map_sequence.append(np.full_like(saliency_map_sequence[0], -1))
-                input_sequence.append(np.full_like(input_sequence[0], -1))
-                if SAVE_SCREEN==True and save_screen==True and i_episode % SAVE_FREQUENCY==0:
-                    screen_sequence.append(np.full_like(screen_sequence[0], -1))
-                #1エピソードの終わりに、-1で埋め尽くしたndarrayをいれる
-            '''
 
-            if saliency_save_flag == True: #i_episode=0,5,10...=1,6,11...エピソード目
+            episode_durations.append(t + 1)
+
+            ave = mean(episode_durations)
+            average_of_reward.append(mean(episode_durations))
+
+            if saliency_save_flag==True:
+
                 saliency_map_sequence.append(np.full_like(saliency_map_sequence[0], -1))
                 input_sequence.append(np.full_like(input_sequence[0], -1))
                 if SAVE_SCREEN==True and save_screen==True:
                     screen_sequence.append(np.full_like(screen_sequence[0], -1))
                 #1エピソードの終わりに、-1で埋め尽くしたndarrayをいれる
 
-            episode_durations.append(t + 1)
-
-            #if i_episode >= START_DURATION-2:
-            ave = mean(episode_durations)
-            average_of_reward.append(mean(episode_durations))
-
-            #
-            if saliency_save_flag==True:
                 saved_episode.append(i_episode)
                 saved_episode_rewards.append(average_of_reward[-1])
-                #print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(subtotal_reward.numpy())+' saliency was generated')
-                print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+str(ave)+'/'+str(ave_max)+' saliency was generated')
-                print(len(saved_episode))
+                print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}'+' saliency was generated')
             else:
-                #print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(subtotal_reward.numpy()))
-                print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+str(ave)+'/'+str(ave_max))
-            #
+                print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}')
+
             saliency_save_flag = decision_of_save(i_episode, average_of_reward, START_SAVE_FREQUENCY, START_DURATION, END_SAVE_FREQUENCY, END_DURATION)
             plot_durations()
             break
@@ -580,12 +501,9 @@ for i_episode in range(num_episodes):
     if i_episode % TARGET_UPDATE == 0:
         target_net.load_state_dict(policy_net.state_dict())
 
-
-
 print(' number of saved episode : '+str(len(saved_episode)))
 print(' saved episode number : '+str(saved_episode))
 print(saved_episode_rewards)
-
 
 save_ndarray_list(input_sequence, 'input')
 save_ndarray_list(saliency_map_sequence, 'saliency_map')
@@ -600,7 +518,6 @@ variables={"EPISODE_NUMBER":EPISODE_NUMBER, "SAVE_FREQUENCY":SAVE_FREQUENCY, "SA
 with open('files/variables.pickle', mode='wb') as f:
     pickle.dump(variables, f)
 print(' finished')
-
 
 print('Complete')
 env.render()
