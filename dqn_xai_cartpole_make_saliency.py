@@ -2,7 +2,7 @@
 EPISODE_NUMBER = 1000
 
 '''saliency settings'''
-SALIENCY_ROUGHNESS = 2
+SALIENCY_ROUGHNESS = 4
 
 '''ndarray save dettings'''
 SAVE_SCREEN = False
@@ -402,7 +402,7 @@ def make_saliency_map(image, mask_sigma, blurred_sigma, decimation_rate):
     saliency_map = np.zeros((int(state_hight/decimation_rate), int(state_width/decimation_rate) ))
     for i in range(0, state_width, decimation_rate):
         for j in range(0, state_hight, decimation_rate):
-            perturbed_state = make_perturbed_image( (image.numpy().squeeze())*255, [j,i], mask_sigma, blurred_sigma )
+            perturbed_state = make_perturbed_image( (image.cpu().numpy().squeeze())*255, [j,i], mask_sigma, blurred_sigma )
             perturbed_state = torch.from_numpy(perturbed_state)
             perturbed_state = perturbed_state.unsqueeze(0).to(device).float()
             perturbed_q = policy_net(perturbed_state)
@@ -490,7 +490,7 @@ for i_episode in range(num_episodes):
         #print(episode_durations)
         #1エピソード目に行う処理
         if i_episode == 0 and t == 3:
-            make_perturbed_image(state.squeeze().numpy(),(20,40),4,3,save=True)
+            make_perturbed_image(state.squeeze().cpu().numpy(),(20,40),4,3,save=True)
             print(' filter images were saved')
             #フィルターのサンプル画像を保存
 
@@ -503,7 +503,7 @@ for i_episode in range(num_episodes):
 
         if saliency_save_flag == True: #i_episode=0,5,10...=1,6,11...エピソード目
             saliency_map_sequence.append( make_saliency_map(state, 4, 3, saliency_calcuration_rate ) )
-            input_sequence.append( current_screen.numpy().squeeze() )
+            input_sequence.append( current_screen.cpu().numpy().squeeze() )
 
         frame_num += 1
 
