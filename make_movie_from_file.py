@@ -112,7 +112,7 @@ def save_movie_from_ndarray(image_sequence, save_name, save_size=(640,320), save
     #保存は[縦,横,色],0~255
     movie[0].save('images/'+save_name+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
 
-def blend_save_movie_from_ndarray(image_sequence1, image_sequence2, save_name, image_sequence1_rate=0.5, contrast_rate=1, save_type='gif', frame_length=160, loop=0, max_color1=[0,0,0], min_color1=[255,255,255], max_color2=[0,0,0], min_color2=[255,255,255]):
+def blend_save_movie_from_ndarray(image_sequence1, image_sequence2, save_name, save_size=(640,320), image_sequence1_rate=0.5, contrast_rate=1, save_type='gif', frame_length=160, loop=0, max_color1=[0,0,0], min_color1=[255,255,255], max_color2=[0,0,0], min_color2=[255,255,255]):
     #image_sequence1,2(ndarray)を合成した画像から動画を作成し、ファイルに保存する
     #image_sequence:[フレーム数,色,縦,横],range:0~1
     #image_sequence1_rate:大きくすると合成時、image_sequence1の影響が大きくなる,range:0~1
@@ -147,8 +147,8 @@ def blend_save_movie_from_ndarray(image_sequence1, image_sequence2, save_name, i
 
         #image1 = Image.fromarray(np.uint8(image_sequence1[i]*255).transpose(1, 2, 0))
         #image2 = Image.fromarray(np.uint8(image_sequence2[i]*255).transpose(1, 2, 0))
-        image1 = image1.resize((640, 320))
-        image2 = image2.resize((640, 320))
+        image1 = image1.resize(save_size)
+        image2 = image2.resize(save_size)
         image2 = Image.blend(image2, image1, image_sequence1_rate)
         image2 = ImageEnhance.Contrast(image2).enhance( contrast_rate/max(image_sequence1_rate,1-image_sequence1_rate) ) #2)
         movie.append( image2 )
@@ -352,6 +352,42 @@ def divide_and_blend_ndarray_and_save_movie(image_sequence1, image_sequence2, sa
             break
     print(' finished')
 
+def divide_ndarray_every_episode(image_sequence):
+    print(' dividing every episode...')
+    from_frame = 0
+    movies = []
+    for i in count():
+        '''from_frameがndarrayからはみ出た'''
+        if from_frame >= image_sequence.shape[0]:
+            break
+        a_movie = []
+        for j in count():
+            if image_sequence[from_frame+j].max()==-1:
+                from_frame = from_frame + j + 1
+                break
+            a_movie.append(image_sequence[from_frame+j])
+        movies.append(np.array(a_movie))
+    print(' finished')
+    return movies
+
+def save_movies_from_ndarray_list(image_sequence_list, episode_number_ndarray, reward_ndarray, save_name, save_size=(640,320), save_type='gif', frame_length=160, loop=0, max_color=[0,0,0], min_color=[255,255,255]):
+    print(' generating '+save_name+'.'+save_type+'...')
+    digit = len(str(episode_number_ndarray[-1]))
+    for i, a_movie in enumerate(image_sequence_list):
+        episode_num = str(episode_number_ndarray[i]).rjust(digit,'0')
+        save_movie_from_ndarray(a_movie, save_name+' ,epi'+episode_num+' ,ave_rew'+f'{reward_ndarray[i]:.2f}', save_size=save_size, save_type=save_type, frame_length=frame_length, loop=loop, max_color=max_color, min_color=min_color)
+    print(' finished')
+
+def blend_save_movies_from_ndarray_lists(image_sequence_list1, image_sequence_list2, episode_number_ndarray, reward_ndarray, save_name, image_sequence1_rate=0.5, contrast_rate=1, save_size=(640,320), save_type='gif', frame_length=160, loop=0, max_color1=[0,0,0], min_color1=[255,255,255],  max_color2=[0,0,0], min_color2=[255,255,255]):
+    print(' generating '+save_name+'.'+save_type+'...')
+    digit = len(str(episode_number_ndarray[-1]))
+
+    for i, (a_movie1,a_movie2) in enumerate(zip(image_sequence_list1,image_sequence_list2)):
+        episode_num = str(episode_number_ndarray[i]).rjust(digit,'0')
+        blend_save_movie_from_ndarray(a_movie1, a_movie2, save_name+' ,epi'+episode_num+' ,ave_rew'+f'{reward_ndarray[i]:.2f}', image_sequence1_rate=image_sequence1_rate, contrast_rate=contrast_rate, save_size=save_size, save_type=save_type, frame_length=frame_length, loop=loop, max_color1=max_color1, min_color1=min_color1, max_color2=max_color2, min_color2=min_color2)
+    print(' finished')
+
+
 with open('files/variables.pickle', mode='rb') as f:
     variables=pickle.load(f)
 
@@ -361,17 +397,32 @@ print(variables)
 print(' loading ndarrays...')
 input_sequence = load_ndarray('input')
 saliency_map_sequence = load_ndarray('saliency_map')
+saved_episode = load_ndarray('episodes')
+saved_episode_rewards = load_ndarray('rewards')
 if SAVE_SCREEN==True and variables["SAVE_SCREEN"]==True:
     screen_sequence = load_ndarray('screen')
 print(' finished')
 
 
+input_sequence_list = divide_ndarray_every_episode(input_sequence)
+saliency_map_sequence_list = divide_ndarray_every_episode(saliency_map_sequence)
+if SAVE_SCREEN==True and variables["SAVE_SCREEN"]==True:
+    screen_sequence_list = divide_ndarray_every_episode(screen_sequence)
+
+#print(len(input_sequence_list))
+
+save_movies_from_ndarray_list(input_sequence_list, saved_episode, saved_episode_rewards, 'input', loop=1)
+save_movies_from_ndarray_list(saliency_map_sequence_list, saved_episode, saved_episode_rewards, 'saliency', loop=1, max_color=SALIENCY_MAX_COLOR, min_color=SALIENCY_MIN_COLOR)
+blend_save_movies_from_ndarray_lists(saliency_map_sequence_list, input_sequence_list, saved_episode, saved_episode_rewards, 'synthesis', loop=1, max_color1=SALIENCY_MAX_COLOR, min_color1=SALIENCY_MIN_COLOR, image_sequence1_rate=SALIENCY_MAP_RATE, contrast_rate=CONTRAST_MAGNIFICATION)
+
+'''
 divide_ndarray_and_save_movie(input_sequence, 'input', FRAME_PER_GIF, loop=1)
 divide_ndarray_and_save_movie(saliency_map_sequence, 'saliency_map', FRAME_PER_GIF, loop=1, max_color=SALIENCY_MAX_COLOR, min_color=SALIENCY_MIN_COLOR)
 if SAVE_SCREEN==True and variables["SAVE_SCREEN"]==True:
     divide_ndarray_and_save_movie(screen_sequence, 'screen', FRAME_PER_GIF, loop=1)
 
 divide_and_blend_ndarray_and_save_movie(input_sequence, saliency_map_sequence, 'synthesis', FRAME_PER_GIF, loop=1, max_color=SALIENCY_MAX_COLOR, min_color=SALIENCY_MIN_COLOR, image_sequence1_rate=SALIENCY_MAP_RATE, contrast_rate=CONTRAST_MAGNIFICATION)
+'''
 
 '''
 input_sequence[5]=np.full_like(input_sequence[0], -1)
