@@ -413,7 +413,7 @@ if SAVE_SCREEN==True and variables["SAVE_SCREEN"]==True:
 
 save_movies_from_ndarray_list(input_sequence_list, saved_episode, saved_episode_rewards, 'input', loop=1)
 save_movies_from_ndarray_list(saliency_map_sequence_list, saved_episode, saved_episode_rewards, 'saliency', loop=1, max_color=SALIENCY_MAX_COLOR, min_color=SALIENCY_MIN_COLOR)
-blend_save_movies_from_ndarray_lists(saliency_map_sequence_list, input_sequence_list, saved_episode, saved_episode_rewards, 'synthesis', loop=1, max_color1=SALIENCY_MAX_COLOR, min_color1=SALIENCY_MIN_COLOR, image_sequence1_rate=SALIENCY_MAP_RATE, contrast_rate=CONTRAST_MAGNIFICATION)
+blend_save_movies_from_ndarray_lists(saliency_map_sequence_list, input_sequence_list, saved_episode, saved_episode_rewards, 'synthesis', loop=0, max_color1=SALIENCY_MAX_COLOR, min_color1=SALIENCY_MIN_COLOR, image_sequence1_rate=SALIENCY_MAP_RATE, contrast_rate=CONTRAST_MAGNIFICATION)
 
 '''
 divide_ndarray_and_save_movie(input_sequence, 'input', FRAME_PER_GIF, loop=1)

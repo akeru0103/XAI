@@ -1,14 +1,14 @@
 '''dqn settings'''
-EPISODE_NUMBER = 100
+EPISODE_NUMBER = 1000
 
 '''saliency settings'''
-SALIENCY_ROUGHNESS = 4
+SALIENCY_ROUGHNESS = 2
 
 '''ndarray save dettings'''
 SAVE_SCREEN = False
 SAVE_FREQUENCY = 5 #何エピソードごとに各種画像のndarrayを作成するか
-START_DURATION = 10
-START_SAVE_FREQUENCY = 3
+START_DURATION = 100
+START_SAVE_FREQUENCY = 10
 END_DURATION = 10
 END_SAVE_FREQUENCY = 3
 
@@ -281,7 +281,7 @@ def save_image(image, save_name, save_type='png'):
         os.mkdir('images')
     #imagesフォルダの作成
     if image.dim()==3:
-        image = Image.fromarray(np.uint8(image.numpy().transpose(1, 2, 0)))
+        image = Image.fromarray(np.uint8(image.cpu().numpy().transpose(1, 2, 0)))
         #保存は[縦,横,色],0~255
         image.save('images/'+save_name+'.'+save_type)
     elif image.dim()==2:
@@ -362,16 +362,16 @@ def make_perturbed_image(image, perturbed_point, mask_sigma, blurred_sigma, save
 
     image_width = image.shape[2]
     image_hight = image.shape[1]
-    mask = torch.from_numpy(get_mask(perturbed_point, [image_hight,image_width], mask_sigma)).float()
+    mask = torch.from_numpy(get_mask(perturbed_point, [image_hight,image_width], mask_sigma)).float().to(device)
 
-    blurred_frame = torch.zeros((3, image_hight, image_width))
-    image1 = torch.zeros((3, image_hight, image_width))
-    image2 = torch.zeros((3, image_hight, image_width))
-    image3 = torch.zeros((3, image_hight, image_width))
+    blurred_frame = torch.zeros((3, image_hight, image_width)).to(device)
+    image1 = torch.zeros((3, image_hight, image_width)).to(device)
+    image2 = torch.zeros((3, image_hight, image_width)).to(device)
+    image3 = torch.zeros((3, image_hight, image_width)).to(device)
     #image3 = copy.copy(image)#np.zeros((3, image_hight, image_width))
 
     for i in range(3):
-        blurred_frame[i] = torch.from_numpy(gaussian_filter(image[i], sigma=blurred_sigma))
+        blurred_frame[i] = torch.from_numpy(gaussian_filter(image[i], sigma=blurred_sigma)).to(device)
         image1[i] = image[i]*(1-mask)
         image2[i] = blurred_frame[i]*mask
         image3[i] = image1[i] + image2[i]
@@ -399,7 +399,7 @@ def make_saliency_map(image, mask_sigma, blurred_sigma, decimation_rate):
     state_width = state.shape[3]
     state_hight = state.shape[2]
     normal_q = policy_net(image)
-    saliency_map = torch.zeros((int(state_hight/decimation_rate), int(state_width/decimation_rate) ))
+    saliency_map = torch.zeros((int(state_hight/decimation_rate), int(state_width/decimation_rate) )).to(device)
     for i in range(0, state_width, decimation_rate):
         for j in range(0, state_hight, decimation_rate):
             perturbed_state = make_perturbed_image( (image.squeeze())*255, [j,i], mask_sigma, blurred_sigma )
@@ -502,8 +502,8 @@ for i_episode in range(num_episodes):
         '''
 
         if saliency_save_flag == True: #i_episode=0,5,10...=1,6,11...エピソード目
-            saliency_map_sequence.append( make_saliency_map(state, 4, 3, saliency_calcuration_rate ).numpy() )
-            input_sequence.append( current_screen.numpy().squeeze() )
+            saliency_map_sequence.append( make_saliency_map(state, 4, 3, saliency_calcuration_rate ).cpu().numpy() )
+            input_sequence.append( current_screen.cpu().numpy().squeeze() )
 
         frame_num += 1
 
