@@ -1,4 +1,5 @@
 '''gif dettings'''
+RESULT_NUMBER = 0 #処理するresultフォルダの番号、0だと未処理のフォルダで一番数字の小さいフォルダになる
 FRAME_PER_GIF = 100 #1つのgifファイルに入れるフレーム数の最大値。大きくすると負荷がかかる
 SAVE_SCREEN = False
 SALIENCY_MAP_RATE = 0.7
@@ -14,6 +15,7 @@ import os
 from PIL import Image, ImageDraw, ImageEnhance
 import pickle
 from itertools import count
+import sys
 
 def save_image(image, save_name, save_type='png'):
     #imageをファイルに保存する
@@ -23,14 +25,14 @@ def save_image(image, save_name, save_type='png'):
         image = image*255
     #rangeの調整
 
-    if os.path.exists('images')==False:
-        os.mkdir('images')
+    if os.path.exists('results/result'+str(RESULT_NUMBER)+'/images')==False:
+        os.mkdir('results/result'+str(RESULT_NUMBER)+'/images')
     #imagesフォルダの作成
 
     if image.ndim==3:
         image = Image.fromarray(np.uint8(image.transpose(1, 2, 0)))
         #保存は[縦,横,色],0~255
-        image.save('images/'+save_name+'.'+save_type)
+        image.save('results/result'+str(RESULT_NUMBER)+'/images/'+save_name+'.'+save_type)
     elif image.ndim==2:
         image_width = image.shape[1]
         image_hight = image.shape[0]
@@ -39,7 +41,7 @@ def save_image(image, save_name, save_type='png'):
             output_image[:,:, i] = image
         image = Image.fromarray(np.uint8(output_image))
         #保存は[縦,横,色],0~255
-        image.save('images/'+save_name+'.'+save_type)
+        image.save('results/result'+str(RESULT_NUMBER)+'/images/'+save_name+'.'+save_type)
 
 def save_movie_from_list(image_sequence, save_name, save_size=(640,320), save_type='gif', frame_length=160, loop=0):
     #image_sequence(ndarrayのリスト)から動画を作成し、ファイルに保存する
@@ -47,8 +49,8 @@ def save_movie_from_list(image_sequence, save_name, save_size=(640,320), save_ty
     #frame_length:1フレームあたりの表示する時間
     #loop:何回ループするか,0だと無限ループ
 
-    if os.path.exists('images')==False:
-        os.mkdir('images')
+    if os.path.exists('results/result'+str(RESULT_NUMBER)+'/images')==False:
+        os.mkdir('results/result'+str(RESULT_NUMBER)+'/images')
     #imagesフォルダの作成
 
     movie = []
@@ -57,10 +59,10 @@ def save_movie_from_list(image_sequence, save_name, save_size=(640,320), save_ty
         movie[i] = movie[i].resize(save_size)
 
     #保存は[縦,横,色],0~255
-    movie[0].save('images/'+save_name+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
+    movie[0].save('results/result'+str(RESULT_NUMBER)+'/images/'+save_name+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
 
 def load_ndarray(file_name, file_type='npz'):
-    loaded_array = np.load('files/'+file_name+'.'+file_type)
+    loaded_array = np.load('results/result'+str(RESULT_NUMBER)+'/files/'+file_name+'.'+file_type)
     return loaded_array['arr_0']
 
 def range_change(input, i_range, o_range):
@@ -95,8 +97,8 @@ def save_movie_from_ndarray(image_sequence, save_name, save_size=(640,320), save
     #frame_length:1フレームあたりの表示する時間
     #loop:何回ループするか,0だと無限ループ
 
-    if os.path.exists('images')==False:
-        os.mkdir('images')
+    if os.path.exists('results/result'+str(RESULT_NUMBER)+'/images')==False:
+        os.mkdir('results/result'+str(RESULT_NUMBER)+'/images')
     #imagesフォルダの作成
 
     movie = []
@@ -110,7 +112,7 @@ def save_movie_from_ndarray(image_sequence, save_name, save_size=(640,320), save
         movie[i] = movie[i].resize(save_size)
 
     #保存は[縦,横,色],0~255
-    movie[0].save('images/'+save_name+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
+    movie[0].save('results/result'+str(RESULT_NUMBER)+'/images/'+save_name+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
 
 def blend_save_movie_from_ndarray(image_sequence1, image_sequence2, save_name, save_size=(640,320), image_sequence1_rate=0.5, contrast_rate=1, save_type='gif', frame_length=160, loop=0, max_color1=[0,0,0], min_color1=[255,255,255], max_color2=[0,0,0], min_color2=[255,255,255]):
     #image_sequence1,2(ndarray)を合成した画像から動画を作成し、ファイルに保存する
@@ -125,8 +127,8 @@ def blend_save_movie_from_ndarray(image_sequence1, image_sequence2, save_name, s
         print('length of image_sequence1 and image_sequence2 must be same')
         return -1
 
-    if os.path.exists('images')==False:
-        os.mkdir('images')
+    if os.path.exists('results/result'+str(RESULT_NUMBER)+'/images')==False:
+        os.mkdir('results/result'+str(RESULT_NUMBER)+'/images')
     #imagesフォルダの作成
 
     movie = []
@@ -154,7 +156,7 @@ def blend_save_movie_from_ndarray(image_sequence1, image_sequence2, save_name, s
         movie.append( image2 )
 
     #保存は[縦,横,色],0~255
-    movie[0].save('images/'+save_name+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
+    movie[0].save('results/result'+str(RESULT_NUMBER)+'/images/'+save_name+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
 
 def divide_ndarray_and_save_movie(image_sequence, save_name, frame_per_gif, save_size=(640,320), save_type='gif', frame_length=160, loop=0, max_color=[0,0,0], min_color=[255,255,255]):
     #ndarrayをframe_per_gifにいい感じに区切ってgifを作成し、ファイルに保存する
@@ -163,8 +165,8 @@ def divide_ndarray_and_save_movie(image_sequence, save_name, frame_per_gif, save
     #loop:何回ループするか,0だと無限ループ
     print(' generating '+save_name+'.'+save_type+'...')
 
-    if os.path.exists('images')==False:
-        os.mkdir('images')
+    if os.path.exists('results/result'+str(RESULT_NUMBER)+'/images')==False:
+        os.mkdir('results/result'+str(RESULT_NUMBER)+'/images')
     #imagesフォルダの作成
 
     array_max = image_sequence.max()
@@ -232,7 +234,7 @@ def divide_ndarray_and_save_movie(image_sequence, save_name, frame_per_gif, save
             movie[movie_position] = movie[movie_position].resize(save_size)
             movie_position = movie_position + 1
         #保存は[縦,横,色],0~255
-        movie[0].save('images/'+save_name+',episode'+str(from_episode*variables["SAVE_FREQUENCY"])+'-'+str((to_episode-1)*variables["SAVE_FREQUENCY"])+',every'+str(variables["SAVE_FREQUENCY"])+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
+        movie[0].save('results/result'+str(RESULT_NUMBER)+'/images/'+save_name+',episode'+str(from_episode*variables["SAVE_FREQUENCY"])+'-'+str((to_episode-1)*variables["SAVE_FREQUENCY"])+',every'+str(variables["SAVE_FREQUENCY"])+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
         from_frame = to_frame + 1
         from_episode = to_episode
         #print('D, from:'+str(from_frame)+', to:'+str(to_frame))
@@ -252,8 +254,8 @@ def divide_and_blend_ndarray_and_save_movie(image_sequence1, image_sequence2, sa
         print('length of image_sequence1 and image_sequence2 must be same')
         return -1
 
-    if os.path.exists('images')==False:
-        os.mkdir('images')
+    if os.path.exists('results/result'+str(RESULT_NUMBER)+'/images')==False:
+        os.mkdir('results/result'+str(RESULT_NUMBER)+'/images')
     #imagesフォルダの作成
 
     array1_max = image_sequence1.max()
@@ -344,7 +346,7 @@ def divide_and_blend_ndarray_and_save_movie(image_sequence1, image_sequence2, sa
             movie.append( image2 )
             movie_position = movie_position + 1
         #保存は[縦,横,色],0~255
-        movie[0].save('images/'+save_name+',episode'+str(from_episode*variables["SAVE_FREQUENCY"])+'-'+str((to_episode-1)*variables["SAVE_FREQUENCY"])+',every'+str(variables["SAVE_FREQUENCY"])+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
+        movie[0].save('results/result'+str(RESULT_NUMBER)+'/images/'+save_name+',episode'+str(from_episode*variables["SAVE_FREQUENCY"])+'-'+str((to_episode-1)*variables["SAVE_FREQUENCY"])+',every'+str(variables["SAVE_FREQUENCY"])+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
         from_frame = to_frame + 1
         from_episode = to_episode
         #print('D, from:'+str(from_frame)+', to:'+str(to_frame))
@@ -388,10 +390,25 @@ def blend_save_movies_from_ndarray_lists(image_sequence_list1, image_sequence_li
     print(' finished')
 
 
+if RESULT_NUMBER == 0:
+    for i in count():
+        if os.path.exists('results/result'+str(i+1))==False:
+            print(' no folder in which gifs were not generated')
+            sys.exit()
+        if os.path.exists('results/result'+str(i+1)+'/processed')==False:
+            RESULT_NUMBER = i+1
+            break
+
+if os.path.exists('results/result'+str(RESULT_NUMBER)+'/processed')==True:
+    print(' gifs were already generated in this folder')
+    sys.exit()
+
+print(' in result'+str(RESULT_NUMBER)+'...')
+
 with open('files/variables.pickle', mode='rb') as f:
     variables=pickle.load(f)
 
-print(variables)
+#print(variables)
 
 
 print(' loading ndarrays...')
@@ -415,6 +432,8 @@ save_movies_from_ndarray_list(input_sequence_list, saved_episode, saved_episode_
 save_movies_from_ndarray_list(saliency_map_sequence_list, saved_episode, saved_episode_rewards, 'saliency', loop=1, max_color=SALIENCY_MAX_COLOR, min_color=SALIENCY_MIN_COLOR)
 blend_save_movies_from_ndarray_lists(saliency_map_sequence_list, input_sequence_list, saved_episode, saved_episode_rewards, 'synthesis', loop=0, max_color1=SALIENCY_MAX_COLOR, min_color1=SALIENCY_MIN_COLOR, image_sequence1_rate=SALIENCY_MAP_RATE, contrast_rate=CONTRAST_MAGNIFICATION)
 
+f = open('results/result'+str(RESULT_NUMBER)+'/processed',mode='w')
+f.close()
 '''
 divide_ndarray_and_save_movie(input_sequence, 'input', FRAME_PER_GIF, loop=1)
 divide_ndarray_and_save_movie(saliency_map_sequence, 'saliency_map', FRAME_PER_GIF, loop=1, max_color=SALIENCY_MAX_COLOR, min_color=SALIENCY_MIN_COLOR)

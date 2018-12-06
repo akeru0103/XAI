@@ -2,6 +2,7 @@
 EPISODE_NUMBER = 20
 
 '''saliency settings'''
+SALIENCY_SAVING = True #saliency計算するかどうか
 SALIENCY_ROUGHNESS = 4
 
 '''ndarray save dettings'''
@@ -35,6 +36,8 @@ from scipy.ndimage.filters import gaussian_filter
 import os
 import pickle
 from statistics import mean
+import datetime
+import time
 
 env = gym.make('CartPole-v0').unwrapped
 
@@ -257,13 +260,13 @@ def save_image(image, save_name, save_type='png'):
     if image.max() <= 1:
         image = image*255
     #rangeの調整
-    if os.path.exists('images')==False:
-        os.mkdir('images')
+    if os.path.exists(save_folder+'/images')==False:
+        os.mkdir(save_folder+'/images')
     #imagesフォルダの作成
     if image.ndim==3:
         image = Image.fromarray(np.uint8(image.transpose(1, 2, 0)))
         #保存は[縦,横,色],0~255
-        image.save('images/'+save_name+'.'+save_type)
+        image.save(save_folder+'/images/'+save_name+'.'+save_type)
     elif image.ndim==2:
         image_width = image.shape[1]
         image_hight = image.shape[0]
@@ -272,7 +275,7 @@ def save_image(image, save_name, save_type='png'):
             output_image[:,:, i] = image
         image = Image.fromarray(np.uint8(output_image))
         #保存は[縦,横,色],0~255
-        image.save('images/'+save_name+'.'+save_type)
+        image.save(save_folder+'/images/'+save_name+'.'+save_type)
 
 
 '''ここから'''
@@ -326,10 +329,10 @@ def blend_save_movie(image_sequence1, image_sequence2, save_name, image_sequence
 
 def save_ndarray_list(ndarray_list, save_name, save_type='npz'):
     print(' outputting '+save_name+'.'+save_type+'...')
-    if os.path.exists('files')==False:
-        os.mkdir('files')
+    if os.path.exists(save_folder+'/files')==False:
+        os.mkdir(save_folder+'/files')
     #filesフォルダの作成
-    np.savez('files/'+save_name+'.'+save_type, ndarray_list)
+    np.savez(save_folder+'/files/'+save_name+'.'+save_type, ndarray_list)
     print(' finished')
 
 def make_perturbed_image(image, perturbed_point, mask_sigma, blurred_sigma, save=False):
@@ -394,15 +397,36 @@ def decision_of_save(episode_num, average_of_reward, episode_per_saliency_start,
         print('error:decision_of_save')
         return -1
     saliency_save_flag = False
+    if SALIENCY_SAVING == False:
+        return saliency_save_flag
     if episode_num < episode_per_saliency_duration_start:
         if episode_num % episode_per_saliency_start == 0:
             saliency_save_flag = True
     elif EPISODE_NUMBER - episode_per_saliency_duration_end <= episode_num:
         if episode_num % episode_per_saliency_end == 0:
             saliency_save_flag = True
-    elif episode_num == episode_per_saliency_duration_start or max(average_of_reward[episode_per_saliency_duration_start:-1]) < average_of_reward[-1]:
+    elif episode_num == episode_per_saliency_duration_start or max(average_of_reward[episode_per_saliency_duration_start:-1]) < average_of_reward[-1] or episode_num % SAVE_FREQUENCY == 0:
         saliency_save_flag = True
     return saliency_save_flag
+
+def print_time(start_time):
+    now = datetime.datetime.now()
+    print(' elapsed time : '+str(now-start_time))
+
+def find_folder_number():
+    for i in count():
+        if os.path.exists('results/result'+str(i+1))==False:
+            return i+1
+        if i>100:
+            return -1
+
+def make_lowest_folder():
+    if os.path.exists('results')==False:
+        os.mkdir('results')
+    path = 'results/result'+str(find_folder_number())
+    os.mkdir(path)
+    return path
+
 
 
 num_episodes = EPISODE_NUMBER
@@ -419,6 +443,14 @@ ave_max=0
 average_of_reward=[]
 saliency_save_flag = False
 
+
+start_time = datetime.datetime.now()
+print(' start time : '+str(start_time))
+
+save_folder = make_lowest_folder()
+
+#f.close()
+
 for i_episode in range(num_episodes):
     #1エピソード開始
 
@@ -431,8 +463,8 @@ for i_episode in range(num_episodes):
     state = current_screen - last_screen
 
     if ave > ave_max and i_episode >= START_DURATION+1:
-        #saliency_save_flag = True
         ave_max = ave
+        episode_of_max_ave = i_episode
 
     #1ステップ目開始
     for t in count():
@@ -492,8 +524,9 @@ for i_episode in range(num_episodes):
                 print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}'+' saliency was generated')
             else:
                 print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}')
-
             saliency_save_flag = decision_of_save(i_episode, average_of_reward, START_SAVE_FREQUENCY, START_DURATION, END_SAVE_FREQUENCY, END_DURATION)
+            if (i_episode+1) % 10 == 0:
+                print_time(start_time)
             plot_durations()
             break
 
@@ -505,21 +538,44 @@ print(' number of saved episode : '+str(len(saved_episode)))
 print(' saved episode number : '+str(saved_episode))
 print(saved_episode_rewards)
 
-save_ndarray_list(input_sequence, 'input')
-save_ndarray_list(saliency_map_sequence, 'saliency_map')
-save_ndarray_list(saved_episode, 'episodes')
-save_ndarray_list(saved_episode_rewards, 'rewards')
-if SAVE_SCREEN==True:
-    save_ndarray_list(screen_sequence, 'screen')
+
+with open(save_folder+'/result.txt', mode='w')as f:
+    f.write('\nsettings\n')
+    f.write('EPISODE_NUMBER: '+str(EPISODE_NUMBER)+'\n')
+    f.write('BATCH_SIZE: '+str(BATCH_SIZE)+'\n')
+    f.write('GAMMA: '+str(GAMMA)+'\n')
+    f.write('EPS_START: '+str(EPS_START)+'\n')
+    f.write('EPS_END: '+str(EPS_END)+'\n')
+    f.write('EPS_DECAY: '+str(EPS_DECAY)+'\n')
+    f.write('TARGET_UPDATE: '+str(TARGET_UPDATE)+'\n')
+    f.write('SALIENCY_SAVING: '+str(SALIENCY_SAVING)+'\n')
+    f.write('SALIENCY_ROUGHNESS: '+str(SALIENCY_ROUGHNESS)+'\n')
+    f.write('\nresults\n')
+    f.write('average max reward: '+str(ave_max)+', episode: '+str(episode_of_max_ave)+'\n')
+    f.write('exection time: '+str(datetime.datetime.now()-start_time))
+plt.savefig(save_folder+'/figure.png')
+
+if SALIENCY_SAVING == True:
+    save_ndarray_list(input_sequence, 'input')
+    save_ndarray_list(saliency_map_sequence, 'saliency_map')
+    save_ndarray_list(saved_episode, 'episodes')
+    save_ndarray_list(saved_episode_rewards, 'rewards')
+    if SAVE_SCREEN==True:
+        save_ndarray_list(screen_sequence, 'screen')
+
+    print(' saving variables...')
+    variables={"EPISODE_NUMBER":EPISODE_NUMBER, "SAVE_FREQUENCY":SAVE_FREQUENCY, "SALIENCY_ROUGHNESS":SALIENCY_ROUGHNESS, "SAVE_SCREEN":SAVE_SCREEN}
+    with open(save_folder+'/files/variables.pickle', mode='wb') as f:
+        pickle.dump(variables, f)
+    print(' finished')
 
 
-print(' saving variables...')
-variables={"EPISODE_NUMBER":EPISODE_NUMBER, "SAVE_FREQUENCY":SAVE_FREQUENCY, "SALIENCY_ROUGHNESS":SALIENCY_ROUGHNESS, "SAVE_SCREEN":SAVE_SCREEN}
-with open('files/variables.pickle', mode='wb') as f:
-    pickle.dump(variables, f)
-print(' finished')
+print(' start  time : '+str(start_time))
+print(' finish time : '+str(datetime.datetime.now()))
+print_time(start_time)
 
 print('Complete')
+time.sleep(1)
 env.render()
 env.close()
 plt.ioff()
