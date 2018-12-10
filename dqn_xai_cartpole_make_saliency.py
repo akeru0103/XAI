@@ -1,17 +1,17 @@
 '''dqn settings'''
-EPISODE_NUMBER = 20
+EPISODE_NUMBER = 50000
 
 '''saliency settings'''
 SALIENCY_SAVING = True #saliency計算するかどうか
-SALIENCY_ROUGHNESS = 4
+SALIENCY_ROUGHNESS = 2
 
 '''ndarray save dettings'''
 SAVE_SCREEN = False
-SAVE_FREQUENCY = 5 #何エピソードごとに各種画像のndarrayを作成するか
-START_DURATION = 6
-START_SAVE_FREQUENCY = 3
-END_DURATION = 6
-END_SAVE_FREQUENCY = 3
+SAVE_FREQUENCY = 100 #何エピソードごとに各種画像のndarrayを作成するか
+START_DURATION = 100
+START_SAVE_FREQUENCY = 10
+END_DURATION = 100
+END_SAVE_FREQUENCY = 10
 
 
 # -*- coding: utf-8 -*-
@@ -526,6 +526,7 @@ for i_episode in range(num_episodes):
                 print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}')
             saliency_save_flag = decision_of_save(i_episode, average_of_reward, START_SAVE_FREQUENCY, START_DURATION, END_SAVE_FREQUENCY, END_DURATION)
             if (i_episode+1) % 10 == 0:
+                plt.savefig(save_folder+'/figure.png')
                 print_time(start_time)
             plot_durations()
             break

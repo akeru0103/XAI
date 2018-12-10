@@ -405,7 +405,7 @@ if os.path.exists('results/result'+str(RESULT_NUMBER)+'/processed')==True:
 
 print(' in result'+str(RESULT_NUMBER)+'...')
 
-with open('files/variables.pickle', mode='rb') as f:
+with open('results/result'+str(RESULT_NUMBER)+'/files/variables.pickle', mode='rb') as f:
     variables=pickle.load(f)
 
 #print(variables)
