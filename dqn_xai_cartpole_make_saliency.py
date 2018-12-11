@@ -1,12 +1,25 @@
 '''dqn settings'''
-EPISODE_NUMBER = 200
+EPISODE_NUMBER = 20
+
+BATCH_SIZE = 128
+GAMMA = 0.999
+EPS_START = 0.9
+EPS_END = 0.05
+EPS_DECAY = 200
+TARGET_UPDATE = 10
 
 '''saliency settings'''
-SALIENCY_ROUGHNESS = 4
+SALIENCY_SAVING = True #saliency計算するかどうか
+SALIENCY_ROUGHNESS = 2
 
 '''ndarray save dettings'''
-SAVE_SCREEN = False
-SAVE_FREQUENCY = 10 #何エピソードごとに各種画像のndarrayを作成するか
+SAVE_SCREEN = True
+SAVE_FREQUENCY = 100 #何エピソードごとに各種画像のndarrayを作成するか
+START_DURATION = 5
+START_SAVE_FREQUENCY = 10
+END_DURATION = 5
+END_SAVE_FREQUENCY = 10
+
 
 # -*- coding: utf-8 -*-
 
@@ -28,9 +41,10 @@ import torchvision.transforms as T
 
 from scipy.ndimage.filters import gaussian_filter
 import os
-import cv2
-import copy
 import pickle
+from statistics import mean
+import datetime
+import time
 
 env = gym.make('CartPole-v0').unwrapped
 
@@ -44,7 +58,6 @@ plt.ion()
 # if gpu is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #device:gpuとcpuのどちらを使うのか
-
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
@@ -107,10 +120,10 @@ def get_screen():
     #screenの各次元の要素数:(3,400,600)
     #恐らく(色,縦,横),range:0~255
 
+    '''
     if SAVE_SCREEN==True and save_screen==True and i_episode % SAVE_FREQUENCY==0:
         screen_sequence.append(screen/255)
-
-    #screen_sequence.append(screen/255)
+    '''
 
     screen = screen[:, 160:320]
     #縦の、159以下と321以上を捨てる
@@ -121,22 +134,12 @@ def get_screen():
 
     cart_location = get_cart_location()
     if cart_location < view_width // 2:
-        #カート<160
-
         slice_range = slice(view_width)
-        #多分160より左をslice_rangeとして指定している
-
     elif cart_location > (screen_width - view_width // 2):
-        #600-160=440<カート
-
         slice_range = slice(-view_width, None)
-        #多分600-160=440より右をslice_rangeとして指定している
-
     else:
         slice_range = slice(cart_location - view_width // 2,
                             cart_location + view_width // 2)
-        #多分カートの左右160をslice_rangeとして指定している
-
     # Strip off(はがす) the edges, so that we have a square image centered on a cart
     screen = screen[:, :, slice_range]
     #多分カートの左右160をスクリーンとして切り出している
@@ -146,13 +149,8 @@ def get_screen():
     # Convert to float, rescare, convert to torch tensor
     # (this doesn't require a copy)
     screen = np.ascontiguousarray(screen, dtype=np.float32) / 255
-    #floatにして、0~255のレンジを0~1にした
-    #screenの各次元の要素数:(3,160,320)
-    #screenの全要素数153600
 
     screen = torch.from_numpy(screen)
-    #torch.from_numpy(screen)はscreenという名のndarrayからtensorを作成
-    #screenという名のテンソルの要素数は153600
 
     # Resize, and add a batch dimension (BCHW)
     return resize(screen).unsqueeze(0).to(device)
@@ -161,12 +159,12 @@ def get_screen():
 
 env.reset()
 
-BATCH_SIZE = 128
-GAMMA = 0.999
-EPS_START = 0.9
-EPS_END = 0.05
-EPS_DECAY = 200
-TARGET_UPDATE = 10
+# BATCH_SIZE = 128
+# GAMMA = 0.999
+# EPS_START = 0.9
+# EPS_END = 0.05
+# EPS_DECAY = 200
+# TARGET_UPDATE = 10
 
 policy_net = DQN().to(device)
 #行動を決めるNNのオブジェクト
@@ -209,9 +207,11 @@ def plot_durations():
     plt.ylabel('Duration')
     plt.plot(durations_t.numpy())
     # Take 100 episode averages and plot them too
-    if len(durations_t) >= 100:
-        means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
-        means = torch.cat((torch.zeros(99), means))
+    if len(durations_t) >= START_DURATION+1:#100:
+        #means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
+        #means = torch.cat((torch.zeros(99), means))
+        means = durations_t.unfold(0, START_DURATION+1, 1).mean(1).view(-1)
+        means = torch.cat((torch.zeros(START_DURATION), means))
         plt.plot(means.numpy())
 
     plt.pause(0.001)  # pause a bit so that plots are updated
@@ -266,28 +266,25 @@ def get_mask(center, size, r):
 def save_image(image, save_name, save_type='png'):
     #imageをファイルに保存する
     #image:[色,縦,横]or[縦,横],range:0~1or0~255
-
     if image.max() <= 1:
         image = image*255
     #rangeの調整
-
-    if os.path.exists('images')==False:
-        os.mkdir('images')
+    if os.path.exists(save_folder+'/images')==False:
+        os.mkdir(save_folder+'/images')
     #imagesフォルダの作成
-
     if image.ndim==3:
         image = Image.fromarray(np.uint8(image.transpose(1, 2, 0)))
         #保存は[縦,横,色],0~255
-        image.save('images/'+save_name+'.'+save_type)
+        image.save(save_folder+'/images/'+save_name+'.'+save_type)
     elif image.ndim==2:
         image_width = image.shape[1]
         image_hight = image.shape[0]
-        output_image = np.zeros((image_hight, image_width, 3), dtype=float)
+        output_image = np.zeros((image_hight, image_width, 3))
         for i in range(3):
             output_image[:,:, i] = image
         image = Image.fromarray(np.uint8(output_image))
         #保存は[縦,横,色],0~255
-        image.save('images/'+save_name+'.'+save_type)
+        image.save(save_folder+'/images/'+save_name+'.'+save_type)
 
 
 '''ここから'''
@@ -341,10 +338,10 @@ def blend_save_movie(image_sequence1, image_sequence2, save_name, image_sequence
 
 def save_ndarray_list(ndarray_list, save_name, save_type='npz'):
     print(' outputting '+save_name+'.'+save_type+'...')
-    if os.path.exists('files')==False:
-        os.mkdir('files')
+    if os.path.exists(save_folder+'/files')==False:
+        os.mkdir(save_folder+'/files')
     #filesフォルダの作成
-    np.savez('files/'+save_name+'.'+save_type, ndarray_list)
+    np.savez_compressed(save_folder+'/files/'+save_name+'.'+save_type, ndarray_list)
     print(' finished')
 
 def make_perturbed_image(image, perturbed_point, mask_sigma, blurred_sigma, save=False):
@@ -362,24 +359,25 @@ def make_perturbed_image(image, perturbed_point, mask_sigma, blurred_sigma, save
     blurred_frame = np.zeros((3, image_hight, image_width))
     image1 = np.zeros((3, image_hight, image_width))
     image2 = np.zeros((3, image_hight, image_width))
-    image3 = copy.copy(image)#np.zeros((3, image_hight, image_width))
+    image3 = np.zeros((3, image_hight, image_width))
+    #image3 = copy.copy(image)#np.zeros((3, image_hight, image_width))
 
     for i in range(3):
         blurred_frame[i] = gaussian_filter(image[i], sigma=blurred_sigma)
-        image1[i] = image[i]*(1-mask)
+        image1[i] = np.multiply(image[i],1-mask)
         image2[i] = blurred_frame[i]*mask
-        image[i] = image1[i] + image2[i]
+        image3[i] = image1[i] + image2[i]
 
     if save==True:
-        save_image(image3, 'input_image')
+        save_image(image, 'input_image')
         save_image(mask, 'mask_image'+str(perturbed_point)+',σ='+str(mask_sigma))
         save_image(1-mask, '1-mask_image'+str(perturbed_point)+',σ='+str(mask_sigma))
         save_image(image1, 'input(1-mask_image)'+str(perturbed_point)+',σ='+str(mask_sigma))
         save_image(image2, 'blurred_image_mask_image,σa='+str(blurred_sigma))
-        save_image(image, 'perturbed_image'+str(perturbed_point)+',σ='+str(mask_sigma)+',σa='+str(blurred_sigma))
+        save_image(image3, 'perturbed_image'+str(perturbed_point)+',σ='+str(mask_sigma)+',σa='+str(blurred_sigma))
         save_image(blurred_frame, 'blurred_frame,σa='+str(blurred_sigma))
 
-    return image
+    return image3
 
 def make_saliency_map(image, mask_sigma, blurred_sigma, decimation_rate):
     #saliency_mapを作成(data:(色,縦,横), dtype:ndarray, shape:(3, hight of image, width of image), range:0~0.1　)
@@ -396,88 +394,129 @@ def make_saliency_map(image, mask_sigma, blurred_sigma, decimation_rate):
     saliency_map = np.zeros((int(state_hight/decimation_rate), int(state_width/decimation_rate) ))
     for i in range(0, state_width, decimation_rate):
         for j in range(0, state_hight, decimation_rate):
-            perturbed_state = make_perturbed_image( (image.numpy().squeeze())*255, [j,i], mask_sigma, blurred_sigma)
+            perturbed_state = make_perturbed_image( (image.cpu().numpy().squeeze())*255, [j,i], mask_sigma, blurred_sigma )
             perturbed_state = torch.from_numpy(perturbed_state)
-            perturbed_state = perturbed_state.unsqueeze(0).to(device)
+            perturbed_state = perturbed_state.unsqueeze(0).to(device).float()
             perturbed_q = policy_net(perturbed_state)
-
-            #saliency_map[:, int(j/decimation_rate),int(i/decimation_rate)] = ( np.array(max_color)-np.array(min_color) )*( float((normal_q-perturbed_q).pow(2).sum().mul_(0.5)) /255 ) + np.array(min_color)*(1/255)*0.6
             saliency_map[int(j/decimation_rate), int(i/decimation_rate)] = float( (normal_q-perturbed_q).pow(2).sum().mul_(0.5) )
-            #3色でまとめてsaliencyを計算し、RGBに変換
-
     return saliency_map
+
+def decision_of_save(episode_num, average_of_reward, episode_per_saliency_start, episode_per_saliency_duration_start, episode_per_saliency_end, episode_per_saliency_duration_end):
+    if EPISODE_NUMBER < episode_per_saliency_duration_start + episode_per_saliency_duration_end:
+        print('error:decision_of_save')
+        return -1
+    saliency_save_flag = False
+    if SALIENCY_SAVING == False:
+        return saliency_save_flag
+    if episode_num < episode_per_saliency_duration_start:
+        if episode_num % episode_per_saliency_start == 0:
+            saliency_save_flag = True
+    elif EPISODE_NUMBER - episode_per_saliency_duration_end <= episode_num:
+        if episode_num % episode_per_saliency_end == 0:
+            saliency_save_flag = True
+    elif episode_num == episode_per_saliency_duration_start or max(average_of_reward[episode_per_saliency_duration_start:-1]) < average_of_reward[-1] or episode_num % SAVE_FREQUENCY == 0:
+        saliency_save_flag = True
+    return saliency_save_flag
+
+def print_time(start_time):
+    now = datetime.datetime.now()
+    print(' elapsed time : '+str(now-start_time))
+
+def find_folder_number():
+    for i in count():
+        if os.path.exists('results/result'+str(i+1))==False:
+            return i+1
+        if i>100:
+            return -1
+
+def make_lowest_folder():
+    if os.path.exists('results')==False:
+        os.mkdir('results')
+    path = 'results/result'+str(find_folder_number())
+    os.mkdir(path)
+    return path
+
+def get_input_position():
+    view_width = 320
+    #NNに入力する画像の幅
+
+    cart_location = get_cart_location()
+    if cart_location < view_width // 2:
+        position = view_width // 2
+    elif cart_location > (screen_width - view_width // 2):
+        position = screen_width - view_width // 2
+    else:
+        position = cart_location
+    return position
+
 
 
 num_episodes = EPISODE_NUMBER
 saliency_calcuration_rate = SALIENCY_ROUGHNESS
 
-frame_num = 0
-#プログラム開始から何フレーム目か
 
 saliency_map_sequence = []
 input_sequence = []
 screen_sequence = []
-nnout=[]
-ep=[]
+cart_location_sequence = []
+saved_episode = []
+saved_episode_rewards = []
+ave=0
+ave_max=0
+average_of_reward=[]
+saliency_save_flag = False
+
+
+start_time = datetime.datetime.now()
+print(' start time : '+str(start_time))
+
+save_folder = make_lowest_folder()
+
+#f.close()
 
 for i_episode in range(num_episodes):
     #1エピソード開始
 
     # Initialize the environment and state
     env.reset()
-    save_screen = False #初期値取得の時は保存しない
+    #save_screen = False #初期値取得の時は保存しない
     last_screen = get_screen()
     current_screen = get_screen()
-    save_screen = True
+    #save_screen = True
     state = current_screen - last_screen
 
-    subtotal_reward = 0
+    if ave > ave_max and i_episode >= START_DURATION+1:
+        ave_max = ave
+        episode_of_max_ave = i_episode
 
-    #1エピソード目に行う処理
-    if i_episode == 0:
-        make_perturbed_image(last_screen.numpy().squeeze(),(20,40),4,3,True)
-        print(' filter images were saved')
-        #フィルターのサンプル画像を保存
-
-
-    print(str(policy_net(state).squeeze()))
-    '''
-    #
-    nnout.append(policy_net(state)[0].squeeze())
-    ep.append(i_episode)
-    print(np.array(ep))
-    print(np.array(nnout))
-    plt.plot(np.array(ep),np.array(nnout))
-    plt.pause(0.001)
-    #
-    '''
     #1ステップ目開始
     for t in count():
 
-        if i_episode % SAVE_FREQUENCY == 0: #i_episode=0,5,10...=1,6,11...エピソード目
-            saliency_map_sequence.append(make_saliency_map(state, 4, 3, saliency_calcuration_rate ) )
-            input_sequence.append(current_screen.numpy().squeeze())
+        print(get_input_position())
 
-        frame_num += 1
+        #print(episode_durations)
+        #1エピソード目に行う処理
+        if i_episode == 0 and t == 3:
+            make_perturbed_image(state.squeeze().cpu().numpy(),(20,40),4,3,save=True)
+            print(' filter images were saved')
+            #フィルターのサンプル画像を保存
 
-
+        if saliency_save_flag == True: #i_episode=0,5,10...=1,6,11...エピソード目
+            saliency_map_sequence.append( make_saliency_map(state, 4, 3, saliency_calcuration_rate ) )
+            input_sequence.append( current_screen.cpu().numpy().squeeze() )
+            if SAVE_SCREEN==True:
+                screen_sequence.append(env.render(mode='rgb_array').transpose((2, 0, 1))/255)
+                cart_location_sequence.append(get_input_position())
 
         # Select and perform an action
         action = select_action(state)
         #action:0が左で1が右に動かす
-
-
         _, reward, done, _ = env.step(action.item())
         reward = torch.tensor([reward], device=device)
-
-        #
-        subtotal_reward = subtotal_reward + reward
-        #
 
         # Observe new state
         last_screen = current_screen
         current_screen = get_screen()
-
         if not done:
             next_state = current_screen - last_screen
         else:
@@ -492,29 +531,32 @@ for i_episode in range(num_episodes):
         # Perform one step of the optimization (on the target network)
         optimize_model()
 
-        #1エピソード終了時のdurationのプロット
+        #1エピソード終了時の動作
         if done:
 
-            if i_episode % SAVE_FREQUENCY == 0: #i_episode=0,5,10...=1,6,11...エピソード目
+            episode_durations.append(t + 1)
+
+            ave = mean(episode_durations)
+            average_of_reward.append(mean(episode_durations))
+
+            if saliency_save_flag==True:
+
                 saliency_map_sequence.append(np.full_like(saliency_map_sequence[0], -1))
                 input_sequence.append(np.full_like(input_sequence[0], -1))
-                if SAVE_SCREEN==True and save_screen==True and i_episode % SAVE_FREQUENCY==0:
+                if SAVE_SCREEN==True:
                     screen_sequence.append(np.full_like(screen_sequence[0], -1))
+                    cart_location_sequence.append(-1)
                 #1エピソードの終わりに、-1で埋め尽くしたndarrayをいれる
 
-
-
-
-
-
-            #
-            if i_episode % SAVE_FREQUENCY == 0:
-                print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(subtotal_reward.numpy())+' saliency was generated')
+                saved_episode.append(i_episode)
+                saved_episode_rewards.append(average_of_reward[-1])
+                print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}'+' saliency was generated')
             else:
-                print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(subtotal_reward.numpy()))
-            #
-
-            episode_durations.append(t + 1)
+                print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}')
+            saliency_save_flag = decision_of_save(i_episode, average_of_reward, START_SAVE_FREQUENCY, START_DURATION, END_SAVE_FREQUENCY, END_DURATION)
+            if (i_episode+1) % 10 == 0:
+                plt.savefig(save_folder+'/figure.png')
+                print_time(start_time)
             plot_durations()
             break
 
@@ -523,20 +565,51 @@ for i_episode in range(num_episodes):
         target_net.load_state_dict(policy_net.state_dict())
 
 
-save_ndarray_list(input_sequence, 'input')
-save_ndarray_list(saliency_map_sequence, 'saliency_map')
-if SAVE_SCREEN==True:
-    save_ndarray_list(screen_sequence, 'screen')
+print(cart_location_sequence)
+
+print(' number of saved episode : '+str(len(saved_episode)))
+print(' saved episode number : '+str(saved_episode))
+print(saved_episode_rewards)
 
 
-print(' saving variables...')
-variables={"EPISODE_NUMBER":EPISODE_NUMBER, "SAVE_FREQUENCY":SAVE_FREQUENCY, "SALIENCY_ROUGHNESS":SALIENCY_ROUGHNESS, "SAVE_SCREEN":SAVE_SCREEN}
-with open('files/variables.pickle', mode='wb') as f:
-    pickle.dump(variables, f)
-print(' finished')
+with open(save_folder+'/result.txt', mode='w')as f:
+    f.write('\nsettings\n')
+    f.write('EPISODE_NUMBER: '+str(EPISODE_NUMBER)+'\n')
+    f.write('BATCH_SIZE: '+str(BATCH_SIZE)+'\n')
+    f.write('GAMMA: '+str(GAMMA)+'\n')
+    f.write('EPS_START: '+str(EPS_START)+'\n')
+    f.write('EPS_END: '+str(EPS_END)+'\n')
+    f.write('EPS_DECAY: '+str(EPS_DECAY)+'\n')
+    f.write('TARGET_UPDATE: '+str(TARGET_UPDATE)+'\n')
+    f.write('SALIENCY_SAVING: '+str(SALIENCY_SAVING)+'\n')
+    f.write('SALIENCY_ROUGHNESS: '+str(SALIENCY_ROUGHNESS)+'\n')
+    f.write('\nresults\n')
+    f.write('average max reward: '+str(ave_max)+', episode: '+str(episode_of_max_ave)+'\n')
+    f.write('exection time: '+str(datetime.datetime.now()-start_time))
+plt.savefig(save_folder+'/figure.png')
 
+if SALIENCY_SAVING == True:
+    save_ndarray_list(input_sequence, 'input')
+    save_ndarray_list(saliency_map_sequence, 'saliency_map')
+    save_ndarray_list(saved_episode, 'episodes')
+    save_ndarray_list(saved_episode_rewards, 'rewards')
+    if SAVE_SCREEN==True:
+        save_ndarray_list(screen_sequence, 'screen')
+        save_ndarray_list(cart_location_sequence, 'cart_location')
+
+    print(' saving variables...')
+    variables={"EPISODE_NUMBER":EPISODE_NUMBER, "SAVE_FREQUENCY":SAVE_FREQUENCY, "SALIENCY_ROUGHNESS":SALIENCY_ROUGHNESS, "SAVE_SCREEN":SAVE_SCREEN}
+    with open(save_folder+'/files/variables.pickle', mode='wb') as f:
+        pickle.dump(variables, f)
+    print(' finished')
+
+
+print(' start  time : '+str(start_time))
+print(' finish time : '+str(datetime.datetime.now()))
+print_time(start_time)
 
 print('Complete')
+time.sleep(1)
 env.render()
 env.close()
 plt.ioff()
