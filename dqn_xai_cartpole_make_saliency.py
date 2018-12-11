@@ -492,9 +492,6 @@ for i_episode in range(num_episodes):
     #1ステップ目開始
     for t in count():
 
-        print(get_input_position())
-
-        #print(episode_durations)
         #1エピソード目に行う処理
         if i_episode == 0 and t == 3:
             make_perturbed_image(state.squeeze().cpu().numpy(),(20,40),4,3,save=True)
