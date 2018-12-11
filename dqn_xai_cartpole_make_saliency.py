@@ -1,16 +1,23 @@
 '''dqn settings'''
-EPISODE_NUMBER = 50000
+EPISODE_NUMBER = 20
+
+BATCH_SIZE = 128
+GAMMA = 0.999
+EPS_START = 0.9
+EPS_END = 0.05
+EPS_DECAY = 200
+TARGET_UPDATE = 10
 
 '''saliency settings'''
 SALIENCY_SAVING = True #saliency計算するかどうか
 SALIENCY_ROUGHNESS = 2
 
 '''ndarray save dettings'''
-SAVE_SCREEN = False
+SAVE_SCREEN = True
 SAVE_FREQUENCY = 100 #何エピソードごとに各種画像のndarrayを作成するか
-START_DURATION = 100
+START_DURATION = 5
 START_SAVE_FREQUENCY = 10
-END_DURATION = 100
+END_DURATION = 5
 END_SAVE_FREQUENCY = 10
 
 
@@ -113,8 +120,10 @@ def get_screen():
     #screenの各次元の要素数:(3,400,600)
     #恐らく(色,縦,横),range:0~255
 
+    '''
     if SAVE_SCREEN==True and save_screen==True and i_episode % SAVE_FREQUENCY==0:
         screen_sequence.append(screen/255)
+    '''
 
     screen = screen[:, 160:320]
     #縦の、159以下と321以上を捨てる
@@ -150,12 +159,12 @@ def get_screen():
 
 env.reset()
 
-BATCH_SIZE = 128
-GAMMA = 0.999
-EPS_START = 0.9
-EPS_END = 0.05
-EPS_DECAY = 200
-TARGET_UPDATE = 10
+# BATCH_SIZE = 128
+# GAMMA = 0.999
+# EPS_START = 0.9
+# EPS_END = 0.05
+# EPS_DECAY = 200
+# TARGET_UPDATE = 10
 
 policy_net = DQN().to(device)
 #行動を決めるNNのオブジェクト
@@ -332,7 +341,7 @@ def save_ndarray_list(ndarray_list, save_name, save_type='npz'):
     if os.path.exists(save_folder+'/files')==False:
         os.mkdir(save_folder+'/files')
     #filesフォルダの作成
-    np.savez(save_folder+'/files/'+save_name+'.'+save_type, ndarray_list)
+    np.savez_compressed(save_folder+'/files/'+save_name+'.'+save_type, ndarray_list)
     print(' finished')
 
 def make_perturbed_image(image, perturbed_point, mask_sigma, blurred_sigma, save=False):
@@ -427,6 +436,19 @@ def make_lowest_folder():
     os.mkdir(path)
     return path
 
+def get_input_position():
+    view_width = 320
+    #NNに入力する画像の幅
+
+    cart_location = get_cart_location()
+    if cart_location < view_width // 2:
+        position = view_width // 2
+    elif cart_location > (screen_width - view_width // 2):
+        position = screen_width - view_width // 2
+    else:
+        position = cart_location
+    return position
+
 
 
 num_episodes = EPISODE_NUMBER
@@ -436,6 +458,7 @@ saliency_calcuration_rate = SALIENCY_ROUGHNESS
 saliency_map_sequence = []
 input_sequence = []
 screen_sequence = []
+cart_location_sequence = []
 saved_episode = []
 saved_episode_rewards = []
 ave=0
@@ -456,10 +479,10 @@ for i_episode in range(num_episodes):
 
     # Initialize the environment and state
     env.reset()
-    save_screen = False #初期値取得の時は保存しない
+    #save_screen = False #初期値取得の時は保存しない
     last_screen = get_screen()
     current_screen = get_screen()
-    save_screen = True
+    #save_screen = True
     state = current_screen - last_screen
 
     if ave > ave_max and i_episode >= START_DURATION+1:
@@ -468,6 +491,8 @@ for i_episode in range(num_episodes):
 
     #1ステップ目開始
     for t in count():
+
+        print(get_input_position())
 
         #print(episode_durations)
         #1エピソード目に行う処理
@@ -479,6 +504,9 @@ for i_episode in range(num_episodes):
         if saliency_save_flag == True: #i_episode=0,5,10...=1,6,11...エピソード目
             saliency_map_sequence.append( make_saliency_map(state, 4, 3, saliency_calcuration_rate ) )
             input_sequence.append( current_screen.cpu().numpy().squeeze() )
+            if SAVE_SCREEN==True:
+                screen_sequence.append(env.render(mode='rgb_array').transpose((2, 0, 1))/255)
+                cart_location_sequence.append(get_input_position())
 
         # Select and perform an action
         action = select_action(state)
@@ -515,8 +543,9 @@ for i_episode in range(num_episodes):
 
                 saliency_map_sequence.append(np.full_like(saliency_map_sequence[0], -1))
                 input_sequence.append(np.full_like(input_sequence[0], -1))
-                if SAVE_SCREEN==True and save_screen==True:
+                if SAVE_SCREEN==True:
                     screen_sequence.append(np.full_like(screen_sequence[0], -1))
+                    cart_location_sequence.append(-1)
                 #1エピソードの終わりに、-1で埋め尽くしたndarrayをいれる
 
                 saved_episode.append(i_episode)
@@ -534,6 +563,9 @@ for i_episode in range(num_episodes):
     # Update the target network
     if i_episode % TARGET_UPDATE == 0:
         target_net.load_state_dict(policy_net.state_dict())
+
+
+print(cart_location_sequence)
 
 print(' number of saved episode : '+str(len(saved_episode)))
 print(' saved episode number : '+str(saved_episode))
@@ -563,6 +595,7 @@ if SALIENCY_SAVING == True:
     save_ndarray_list(saved_episode_rewards, 'rewards')
     if SAVE_SCREEN==True:
         save_ndarray_list(screen_sequence, 'screen')
+        save_ndarray_list(cart_location_sequence, 'cart_location')
 
     print(' saving variables...')
     variables={"EPISODE_NUMBER":EPISODE_NUMBER, "SAVE_FREQUENCY":SAVE_FREQUENCY, "SALIENCY_ROUGHNESS":SALIENCY_ROUGHNESS, "SAVE_SCREEN":SAVE_SCREEN}

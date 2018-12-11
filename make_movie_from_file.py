@@ -1,7 +1,7 @@
 '''gif dettings'''
 RESULT_NUMBER = 0 #処理するresultフォルダの番号、0だと未処理のフォルダで一番数字の小さいフォルダになる
 FRAME_PER_GIF = 100 #1つのgifファイルに入れるフレーム数の最大値。大きくすると負荷がかかる
-SAVE_SCREEN = False
+SAVE_SCREEN = True
 SALIENCY_MAP_RATE = 0.7
 CONTRAST_MAGNIFICATION = 2.5
 SALIENCY_MAX_COLOR = [0,0,255]
@@ -62,7 +62,9 @@ def save_movie_from_list(image_sequence, save_name, save_size=(640,320), save_ty
     movie[0].save('results/result'+str(RESULT_NUMBER)+'/images/'+save_name+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
 
 def load_ndarray(file_name, file_type='npz'):
+    print(' loading '+file_name+'.'+file_type+'...')
     loaded_array = np.load('results/result'+str(RESULT_NUMBER)+'/files/'+file_name+'.'+file_type)
+    print(' finished')
     return loaded_array['arr_0']
 
 def range_change(input, i_range, o_range):
@@ -154,6 +156,51 @@ def blend_save_movie_from_ndarray(image_sequence1, image_sequence2, save_name, s
         image2 = Image.blend(image2, image1, image_sequence1_rate)
         image2 = ImageEnhance.Contrast(image2).enhance( contrast_rate/max(image_sequence1_rate,1-image_sequence1_rate) ) #2)
         movie.append( image2 )
+
+    #保存は[縦,横,色],0~255
+    movie[0].save('results/result'+str(RESULT_NUMBER)+'/images/'+save_name+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
+
+def blend_save_movie_from_ndarray_different_size(image_sequence1, image_sequence2, position_sequence, save_name, save_size1=(640,320), save_size2=(640,320), image_sequence1_rate=0.5, contrast_rate=1, save_type='gif', frame_length=160, loop=0, max_color1=[0,0,0], min_color1=[255,255,255], max_color2=[0,0,0], min_color2=[255,255,255]):
+    #image_sequence1,2(ndarray)を合成した画像から動画を作成し、ファイルに保存する
+    #image_sequence:[フレーム数,色,縦,横],range:0~1
+    #image_sequence1_rate:大きくすると合成時、image_sequence1の影響が大きくなる,range:0~1
+    #contrast_rate:出力gifのコントラストをn倍する
+    #frame_length:1フレームあたりの表示する時間
+    #loop:何回ループするか,0だと無限ループ
+
+    if image_sequence1.shape[0]!=image_sequence2.shape[0] or image_sequence1.shape[0]!=len(position_sequence):
+        print('error:blend_save_movie')
+        print('length of image_sequence1 and image_sequence2 must be same')
+        return -1
+
+    if os.path.exists('results/result'+str(RESULT_NUMBER)+'/images')==False:
+        os.mkdir('results/result'+str(RESULT_NUMBER)+'/images')
+    #imagesフォルダの作成
+
+    movie = []
+    array1_max = image_sequence1.max()
+    array1_min = image_sequence1.min()
+    array2_max = image_sequence2.max()
+    array2_min = image_sequence2.min()
+    for i in range( len(image_sequence1) ):
+        if image_sequence1.ndim==3:
+            image1 = Image.fromarray(np.uint8( mono_to_color(image_sequence1[i], array1_max, array1_min, max_color1, min_color1) *255).transpose(1, 2, 0))
+        else:
+            image1 = Image.fromarray(np.uint8(image_sequence1[i]*255).transpose(1, 2, 0))
+
+        if image_sequence2.ndim==3:
+            image2 = Image.fromarray(np.uint8( mono_to_color(image_sequence2[i], array2_max, array2_min, max_color2, min_color2) *255).transpose(1, 2, 0))
+        else:
+            image2 = Image.fromarray(np.uint8(image_sequence2[i]*255).transpose(1, 2, 0))
+
+        image1 = image1.resize(save_size1)
+        image2 = image2.resize(save_size2)
+        image1 = paste_image_to_background(image1, save_size2, (position_sequence[i]-160,160) )
+        image2 = Image.blend(image2, image1, image_sequence1_rate)
+        image2 = ImageEnhance.Contrast(image2).enhance( contrast_rate/max(image_sequence1_rate,1-image_sequence1_rate) ) #2)
+        movie.append( image2 )
+
+    movie_sadfadfas[0].save('results/result'+str(RESULT_NUMBER)+'/images/sadfadfas.'+save_type, save_all=True, append_images=movie_sadfadfas[1:], optimize=False, duration=frame_length, loop=loop)
 
     #保存は[縦,横,色],0~255
     movie[0].save('results/result'+str(RESULT_NUMBER)+'/images/'+save_name+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
@@ -389,6 +436,21 @@ def blend_save_movies_from_ndarray_lists(image_sequence_list1, image_sequence_li
         blend_save_movie_from_ndarray(a_movie1, a_movie2, save_name+' ,epi'+episode_num+' ,ave_rew'+f'{reward_ndarray[i]:.2f}', image_sequence1_rate=image_sequence1_rate, contrast_rate=contrast_rate, save_size=save_size, save_type=save_type, frame_length=frame_length, loop=loop, max_color1=max_color1, min_color1=min_color1, max_color2=max_color2, min_color2=min_color2)
     print(' finished')
 
+def blend_save_movies_from_ndarray_lists_different_size(image_sequence_list1, image_sequence_list2, position_sequence_list, episode_number_ndarray, reward_ndarray, save_name, image_sequence1_rate=0.5, contrast_rate=1, save_size1=(640,320), save_size2=(640,320), save_type='gif', frame_length=160, loop=0, max_color1=[0,0,0], min_color1=[255,255,255],  max_color2=[0,0,0], min_color2=[255,255,255]):
+    print(' generating '+save_name+'.'+save_type+'...')
+    digit = len(str(episode_number_ndarray[-1]))
+
+    for i, (a_movie1,a_movie2,position_sequence) in enumerate(zip(image_sequence_list1,image_sequence_list2,position_sequence_list)):
+        episode_num = str(episode_number_ndarray[i]).rjust(digit,'0')
+        blend_save_movie_from_ndarray_different_size(a_movie1, a_movie2, position_sequence, save_name+' ,epi'+episode_num+' ,ave_rew'+f'{reward_ndarray[i]:.2f}', image_sequence1_rate=image_sequence1_rate, contrast_rate=contrast_rate, save_size1=save_size1, save_size2=save_size2, save_type=save_type, frame_length=frame_length, loop=loop, max_color1=max_color1, min_color1=min_color1, max_color2=max_color2, min_color2=min_color2)
+    print(' finished')
+
+def paste_image_to_background(image, background_size, paste_position):
+    background = np.full((3,background_size[1],background_size[0]), 1)
+    background = Image.fromarray(np.uint8(background*255).transpose(1, 2, 0))
+    background.paste(image, paste_position)
+    return background
+
 
 if RESULT_NUMBER == 0:
     for i in count():
@@ -399,67 +461,42 @@ if RESULT_NUMBER == 0:
             RESULT_NUMBER = i+1
             break
 
+print(' in result'+str(RESULT_NUMBER)+'...')
+
 if os.path.exists('results/result'+str(RESULT_NUMBER)+'/processed')==True:
     print(' gifs were already generated in this folder')
     sys.exit()
 
-print(' in result'+str(RESULT_NUMBER)+'...')
+
 
 with open('results/result'+str(RESULT_NUMBER)+'/files/variables.pickle', mode='rb') as f:
     variables=pickle.load(f)
 
-#print(variables)
-
-
-print(' loading ndarrays...')
 input_sequence = load_ndarray('input')
 saliency_map_sequence = load_ndarray('saliency_map')
 saved_episode = load_ndarray('episodes')
 saved_episode_rewards = load_ndarray('rewards')
 if SAVE_SCREEN==True and variables["SAVE_SCREEN"]==True:
     screen_sequence = load_ndarray('screen')
-print(' finished')
+    cart_location_sequence = load_ndarray('cart_location')
 
 
 input_sequence_list = divide_ndarray_every_episode(input_sequence)
 saliency_map_sequence_list = divide_ndarray_every_episode(saliency_map_sequence)
 if SAVE_SCREEN==True and variables["SAVE_SCREEN"]==True:
     screen_sequence_list = divide_ndarray_every_episode(screen_sequence)
+    cart_location_sequence_list = divide_ndarray_every_episode(cart_location_sequence)
 
-#print(len(input_sequence_list))
 
 save_movies_from_ndarray_list(input_sequence_list, saved_episode, saved_episode_rewards, 'input', loop=1)
 save_movies_from_ndarray_list(saliency_map_sequence_list, saved_episode, saved_episode_rewards, 'saliency', loop=1, max_color=SALIENCY_MAX_COLOR, min_color=SALIENCY_MIN_COLOR)
+if SAVE_SCREEN==True and variables["SAVE_SCREEN"]==True:
+    save_movies_from_ndarray_list(screen_sequence_list, saved_episode, saved_episode_rewards, 'screen', loop=1, max_color=SALIENCY_MAX_COLOR, min_color=SALIENCY_MIN_COLOR, save_size=(600,400))
+    blend_save_movies_from_ndarray_lists_different_size(saliency_map_sequence_list, screen_sequence_list, cart_location_sequence_list, saved_episode, saved_episode_rewards, 'synthesis2', save_size1=(320,160), save_size2=(600,400), loop=0, max_color1=SALIENCY_MAX_COLOR, min_color1=SALIENCY_MIN_COLOR, image_sequence1_rate=SALIENCY_MAP_RATE, contrast_rate=CONTRAST_MAGNIFICATION)
 blend_save_movies_from_ndarray_lists(saliency_map_sequence_list, input_sequence_list, saved_episode, saved_episode_rewards, 'synthesis', loop=0, max_color1=SALIENCY_MAX_COLOR, min_color1=SALIENCY_MIN_COLOR, image_sequence1_rate=SALIENCY_MAP_RATE, contrast_rate=CONTRAST_MAGNIFICATION)
+
 
 f = open('results/result'+str(RESULT_NUMBER)+'/processed',mode='w')
 f.close()
-'''
-divide_ndarray_and_save_movie(input_sequence, 'input', FRAME_PER_GIF, loop=1)
-divide_ndarray_and_save_movie(saliency_map_sequence, 'saliency_map', FRAME_PER_GIF, loop=1, max_color=SALIENCY_MAX_COLOR, min_color=SALIENCY_MIN_COLOR)
-if SAVE_SCREEN==True and variables["SAVE_SCREEN"]==True:
-    divide_ndarray_and_save_movie(screen_sequence, 'screen', FRAME_PER_GIF, loop=1)
 
-divide_and_blend_ndarray_and_save_movie(input_sequence, saliency_map_sequence, 'synthesis', FRAME_PER_GIF, loop=1, max_color=SALIENCY_MAX_COLOR, min_color=SALIENCY_MIN_COLOR, image_sequence1_rate=SALIENCY_MAP_RATE, contrast_rate=CONTRAST_MAGNIFICATION)
-'''
-
-'''
-input_sequence[5]=np.full_like(input_sequence[0], -1)
-input_sequence[8]=np.full_like(input_sequence[0], -1)
-input_sequence[12]=np.full_like(input_sequence[0], -1)
-input_sequence[16]=np.full_like(input_sequence[0], -1)
-input_sequence[21]=np.full_like(input_sequence[0], -1)
-input_sequence[23]=np.full_like(input_sequence[0], -1)
-
-
-divide_ndarray_and_save_movie(input_sequence, 'test', 10, loop=1)
-#
-'''
-
-
-'''
-save_movie_from_ndarray(input_sequence, 'input')
-save_movie_from_ndarray(saliency_map_sequence, 'saliency_map', max_color=[255,0,0])
-save_movie_from_ndarray(screen_sequence, 'screen', save_size=(600,400))
-blend_save_movie_from_ndarray(input_sequence, saliency_map_sequence, 'synthesis', loop=1)
-'''
+print('Complete')
