@@ -12,8 +12,8 @@ UPDATE_TARGET_Q_FREQ = 3
 TRAIN_FREQ = 5
 
 '''saliency settings'''
-SALIENCY_SAVING = False #saliency計算するかどうか
-SALIENCY_ROUGHNESS = 2
+SALIENCY_SAVING = True #saliency計算するかどうか
+SALIENCY_ROUGHNESS = 8
 
 '''ndarray save dettings'''
 SAVE_SCREEN = True
@@ -174,6 +174,7 @@ policy_net = DQN().to(device)
 q_ast = deepcopy(policy_net)
 #行動を決めるNNのオブジェクト
 #to(device)はgpuとcpuのどちらを使うのか
+print(policy_net)
 
 target_net = DQN().to(device)
 target_net.load_state_dict(policy_net.state_dict())
@@ -265,7 +266,7 @@ def optimize_model():
         action_batch = torch.cat(batch.action)
         reward_batch = torch.cat(batch.reward)
 
-        policy_net.eval()
+        #policy_net.eval()
         # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
         # columns of actions taken
         state_action_values = policy_net(state_batch).gather(1, action_batch)
@@ -276,7 +277,7 @@ def optimize_model():
         # Compute the expected Q values
         expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
-        policy_net.train()
+        #policy_net.train()
         # Compute Huber loss
         loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
 
@@ -609,15 +610,23 @@ for i_episode in range(num_episodes):
             else:
                 print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}')
             saliency_save_flag = decision_of_save(i_episode, average_of_reward, START_SAVE_FREQUENCY, START_DURATION, END_SAVE_FREQUENCY, END_DURATION)
+            ave_loss.append(mean(episode_loss))
             if (i_episode+1) % 10 == 0:
                 plt.figure(2)
                 plt.savefig(save_folder+'/figure.png')
                 plt.figure(3)
                 plt.savefig(save_folder+'/loss.png')
+                if SALIENCY_SAVING == True:
+                    save_ndarray_list(input_sequence, 'input')
+                    save_ndarray_list(saliency_map_sequence, 'saliency_map')
+                    save_ndarray_list(saved_episode, 'episodes')
+                    save_ndarray_list(saved_episode_rewards, 'rewards')
+                    if SAVE_SCREEN==True:
+                        save_ndarray_list(screen_sequence, 'screen')
+                        save_ndarray_list(cart_location_sequence, 'cart_location')
                 print_time(start_time)
-            plot_durations()
-            ave_loss.append(mean(episode_loss))
-            plot_loss()
+                plot_durations()
+                plot_loss()
             break
 
     # Update the target network
@@ -625,7 +634,7 @@ for i_episode in range(num_episodes):
     #    target_net.load_state_dict(policy_net.state_dict())
 
 
-print(cart_location_sequence)
+#print(cart_location_sequence)
 
 print(' number of saved episode : '+str(len(saved_episode)))
 print(' saved episode number : '+str(saved_episode))
