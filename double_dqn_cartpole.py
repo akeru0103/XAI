@@ -265,6 +265,7 @@ def optimize_model():
         action_batch = torch.cat(batch.action)
         reward_batch = torch.cat(batch.reward)
 
+        policy_net.eval()
         # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
         # columns of actions taken
         state_action_values = policy_net(state_batch).gather(1, action_batch)
@@ -275,6 +276,7 @@ def optimize_model():
         # Compute the expected Q values
         expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
+        policy_net.train()
         # Compute Huber loss
         loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
 
