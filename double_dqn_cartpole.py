@@ -224,12 +224,33 @@ def plot_durations():
         display.clear_output(wait=True)
         display.display(plt.gcf())
 
+
+ave_loss = []
+
+
+def plot_loss():
+    plt.figure(3)
+    plt.clf()
+    loss_t = torch.tensor(ave_loss, dtype=torch.float)
+    plt.title('Training...')
+    plt.xlabel('Episode')
+    plt.ylabel('Loss')
+    plt.plot(loss_t.numpy())
+
+
+    plt.pause(0.001)  # pause a bit so that plots are updated
+    if is_ipython:
+        display.clear_output(wait=True)
+        display.display(plt.gcf())
+
 def optimize_model():
     global last_sync
     q_ast = policy_net
     if len(memory) < BATCH_SIZE:
+        episode_loss.append(0)
         return
-    if num_episodes % TRAIN_FREQ == 0:
+    #print(num_episodes)
+    if steps_done % TRAIN_FREQ == 0:
         transitions = memory.sample(BATCH_SIZE)
         # Transpose the batch (see http://stackoverflow.com/a/19343/3343043 for
         # detailed explanation).
@@ -256,14 +277,26 @@ def optimize_model():
 
         # Compute Huber loss
         loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
-    if num_episodes % UPDATE_TARGET_Q_FREQ == 0:
+
+        #print(loss.item())
+        #
+        episode_loss.append(loss.item())
+        #
+
+        # Optimize the model
+        optimizer.zero_grad()
+        loss.backward()
+        for param in policy_net.parameters():
+            param.grad.data.clamp_(-1, 1)
+        optimizer.step()
+    if steps_done % UPDATE_TARGET_Q_FREQ == 0:
             q_ast = deepcopy(policy_net)
-    # Optimize the model
-    optimizer.zero_grad()
-    loss.backward()
-    for param in policy_net.parameters():
-        param.grad.data.clamp_(-1, 1)
-    optimizer.step()
+    # # Optimize the model
+    # optimizer.zero_grad()
+    # loss.backward()
+    # for param in policy_net.parameters():
+    #     param.grad.data.clamp_(-1, 1)
+    # optimizer.step()
 
 def get_mask(center, size, r):
     y,x = np.ogrid[-center[0]:size[0]-center[0], -center[1]:size[1]-center[1]]
@@ -497,6 +530,8 @@ with open(save_folder+'/result.txt', mode='w')as f:
 for i_episode in range(num_episodes):
     #1エピソード開始
 
+    #e_loss
+    episode_loss = []
     # Initialize the environment and state
     env.reset()
     #save_screen = False #初期値取得の時は保存しない
@@ -552,6 +587,7 @@ for i_episode in range(num_episodes):
         if done:
 
             episode_durations.append(t + 1)
+            #episode_loss.append(e_loss)
 
             ave = mean(episode_durations)
             average_of_reward.append(mean(episode_durations))
@@ -572,9 +608,14 @@ for i_episode in range(num_episodes):
                 print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}')
             saliency_save_flag = decision_of_save(i_episode, average_of_reward, START_SAVE_FREQUENCY, START_DURATION, END_SAVE_FREQUENCY, END_DURATION)
             if (i_episode+1) % 10 == 0:
+                plt.figure(2)
                 plt.savefig(save_folder+'/figure.png')
+                plt.figure(3)
+                plt.savefig(save_folder+'/loss.png')
                 print_time(start_time)
             plot_durations()
+            ave_loss.append(mean(episode_loss))
+            plot_loss()
             break
 
     # Update the target network
