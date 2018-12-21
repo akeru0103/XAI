@@ -1,5 +1,5 @@
 '''dqn settings'''
-EPISODE_NUMBER = 100
+EPISODE_NUMBER = 5000
 
 BATCH_SIZE = 128
 GAMMA = 0.999
@@ -7,13 +7,14 @@ EPS_START = 0.9
 EPS_END = 0.05
 EPS_DECAY = 200
 TARGET_UPDATE = 10
+LEARNING_RATE=0.001
 
 UPDATE_TARGET_Q_FREQ = 3
 TRAIN_FREQ = 5
 
 '''saliency settings'''
-SALIENCY_SAVING = True #saliency計算するかどうか
-SALIENCY_ROUGHNESS = 8
+SALIENCY_SAVING = False #saliency計算するかどうか
+SALIENCY_ROUGHNESS = 2
 
 '''ndarray save dettings'''
 SAVE_SCREEN = True
@@ -89,13 +90,13 @@ class DQN(nn.Module):
 
     def __init__(self):
         super(DQN, self).__init__()
-        self.conv1 = nn.Conv2d(3, 16, kernel_size=5, stride=2)
-        self.bn1 = nn.BatchNorm2d(16)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=5, stride=2)
-        self.bn2 = nn.BatchNorm2d(32)
-        self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
-        self.bn3 = nn.BatchNorm2d(32)
-        self.head = nn.Linear(448, 2)
+        self.conv1 = nn.Conv2d(3, 64*4, kernel_size=5, stride=2)
+        self.bn1 = nn.BatchNorm2d(64*4)
+        self.conv2 = nn.Conv2d(64*4, 128*4, kernel_size=5, stride=2)
+        self.bn2 = nn.BatchNorm2d(128*4)
+        self.conv3 = nn.Conv2d(128*4, 128*4, kernel_size=5, stride=2)
+        self.bn3 = nn.BatchNorm2d(128*4)
+        self.head = nn.Linear(1792*4, 2)
 
     def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)))
@@ -180,7 +181,7 @@ target_net = DQN().to(device)
 target_net.load_state_dict(policy_net.state_dict())
 target_net.eval()
 
-optimizer = optim.RMSprop(policy_net.parameters())
+optimizer = optim.RMSprop(policy_net.parameters(),lr=LEARNING_RATE)
 memory = ReplayMemory(10000)
 
 steps_done = 0
@@ -227,6 +228,7 @@ def plot_durations():
 
 
 ave_loss = []
+ave_q = []
 
 
 def plot_loss():
@@ -530,6 +532,13 @@ with open(save_folder+'/result.txt', mode='w')as f:
     f.write('SALIENCY_SAVING: '+str(SALIENCY_SAVING)+'\n')
     f.write('SALIENCY_ROUGHNESS: '+str(SALIENCY_ROUGHNESS)+'\n')
 
+if SALIENCY_SAVING == True:
+    print(' saving variables...')
+    variables={"EPISODE_NUMBER":EPISODE_NUMBER, "SAVE_FREQUENCY":SAVE_FREQUENCY, "SALIENCY_ROUGHNESS":SALIENCY_ROUGHNESS, "SAVE_SCREEN":SAVE_SCREEN}
+    with open(save_folder+'/files/variables.pickle', mode='wb') as f:
+        pickle.dump(variables, f)
+    print(' finished')
+
 for i_episode in range(num_episodes):
     #1エピソード開始
 
@@ -546,6 +555,8 @@ for i_episode in range(num_episodes):
     if ave > ave_max and i_episode >= START_DURATION+1:
         ave_max = ave
         episode_of_max_ave = i_episode
+
+    ave_q.append(np.mean(policy_net(state).cpu().detach().numpy()))
 
     #1ステップ目開始
     for t in count():
@@ -610,7 +621,8 @@ for i_episode in range(num_episodes):
             else:
                 print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}')
             saliency_save_flag = decision_of_save(i_episode, average_of_reward, START_SAVE_FREQUENCY, START_DURATION, END_SAVE_FREQUENCY, END_DURATION)
-            ave_loss.append(mean(episode_loss))
+            ave_loss.append(mean(episode_loss)/(i_episode+1))
+            
             if (i_episode+1) % 10 == 0:
                 plt.figure(2)
                 plt.savefig(save_folder+'/figure.png')
@@ -624,6 +636,7 @@ for i_episode in range(num_episodes):
                     if SAVE_SCREEN==True:
                         save_ndarray_list(screen_sequence, 'screen')
                         save_ndarray_list(cart_location_sequence, 'cart_location')
+               
                 print_time(start_time)
                 plot_durations()
                 plot_loss()
