@@ -1,6 +1,7 @@
 '''dqn settings'''
 EPISODE_NUMBER = 5000
 
+dqn_a = 4
 BATCH_SIZE = 128
 GAMMA = 0.999
 EPS_START = 0.9
@@ -9,8 +10,8 @@ EPS_DECAY = 200
 TARGET_UPDATE = 10
 LEARNING_RATE=0.001
 
-UPDATE_TARGET_Q_FREQ = 3
-TRAIN_FREQ = 5
+UPDATE_TARGET_Q_FREQ = 1
+TRAIN_FREQ = 1
 
 '''saliency settings'''
 SALIENCY_SAVING = True #saliency計算するかどうか
@@ -50,6 +51,8 @@ import pickle
 from statistics import mean
 import datetime
 import time
+import msvcrt
+import sys
 
 env = gym.make('CartPole-v0').unwrapped
 
@@ -90,13 +93,13 @@ class DQN(nn.Module):
 
     def __init__(self):
         super(DQN, self).__init__()
-        self.conv1 = nn.Conv2d(3, 64*4, kernel_size=5, stride=2)
-        self.bn1 = nn.BatchNorm2d(64*4)
-        self.conv2 = nn.Conv2d(64*4, 128*4, kernel_size=5, stride=2)
-        self.bn2 = nn.BatchNorm2d(128*4)
-        self.conv3 = nn.Conv2d(128*4, 128*4, kernel_size=5, stride=2)
-        self.bn3 = nn.BatchNorm2d(128*4)
-        self.head = nn.Linear(1792*4, 2)
+        self.conv1 = nn.Conv2d(3, 16*dqn_a, kernel_size=5, stride=2)
+        self.bn1 = nn.BatchNorm2d(16*dqn_a)
+        self.conv2 = nn.Conv2d(16*dqn_a, 32*dqn_a, kernel_size=5, stride=2)
+        self.bn2 = nn.BatchNorm2d(32*dqn_a)
+        self.conv3 = nn.Conv2d(32*dqn_a, 32*dqn_a, kernel_size=5, stride=2)
+        self.bn3 = nn.BatchNorm2d(32*dqn_a)
+        self.head = nn.Linear(448*dqn_a, 2)
 
     def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)))
@@ -247,7 +250,7 @@ def plot_loss():
         display.display(plt.gcf())
 
 def optimize_model():
-    global last_sync
+    #global last_sync
     q_ast = policy_net
     if len(memory) < BATCH_SIZE:
         episode_loss.append(0)
@@ -448,10 +451,12 @@ def make_saliency_map(image, mask_sigma, blurred_sigma, decimation_rate):
             saliency_map[int(j/decimation_rate), int(i/decimation_rate)] = float( (normal_q-perturbed_q).pow(2).sum().mul_(0.5) )
     return saliency_map
 
+average_of_reward_max = 0
 def decision_of_save(episode_num, average_of_reward, episode_per_saliency_start, episode_per_saliency_duration_start, episode_per_saliency_end, episode_per_saliency_duration_end):
     if EPISODE_NUMBER < episode_per_saliency_duration_start + episode_per_saliency_duration_end:
         print('error:decision_of_save')
         return -1
+    global average_of_reward_max
     saliency_save_flag = False
     if SALIENCY_SAVING == False:
         return saliency_save_flag
@@ -461,7 +466,10 @@ def decision_of_save(episode_num, average_of_reward, episode_per_saliency_start,
     elif EPISODE_NUMBER - episode_per_saliency_duration_end <= episode_num:
         if episode_num % episode_per_saliency_end == 0:
             saliency_save_flag = True
-    elif episode_num == episode_per_saliency_duration_start or max(average_of_reward[episode_per_saliency_duration_start:-1]) < average_of_reward[-1] or episode_num % SAVE_FREQUENCY == 0:
+    elif average_of_reward_max + 5 < average_of_reward[-1]:
+        average_of_reward_max = average_of_reward[-1]
+        saliency_save_flag = True
+    elif episode_num == episode_per_saliency_duration_start or episode_num % SAVE_FREQUENCY == 0:
         saliency_save_flag = True
     return saliency_save_flag
 
@@ -533,6 +541,8 @@ with open(save_folder+'/result.txt', mode='w')as f:
     f.write('TARGET_UPDATE: '+str(TARGET_UPDATE)+'\n')
     f.write('SALIENCY_SAVING: '+str(SALIENCY_SAVING)+'\n')
     f.write('SALIENCY_ROUGHNESS: '+str(SALIENCY_ROUGHNESS)+'\n')
+    f.write('LEARNING_RATE: '+str(LEARNING_RATE)+'\n')
+    f.write(str(policy_net)+'\n')
 
 if SALIENCY_SAVING == True:
     print(' saving variables...')
@@ -562,6 +572,12 @@ for i_episode in range(num_episodes):
 
     #1ステップ目開始
     for t in count():
+
+        if msvcrt.kbhit(): # キーが押されているか
+            kb = msvcrt.getch() # 押されていれば、キーを取得する
+            if kb.decode() == 'q' :
+                print('quit')
+                sys.exit()
 
         #1エピソード目に行う処理
         if i_episode == 0 and t == 3:
