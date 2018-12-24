@@ -241,7 +241,7 @@ def plot_loss():
     loss_t = torch.tensor(ave_loss, dtype=torch.float)
     plt.title('Training...')
     plt.xlabel('Episode')
-    plt.ylabel('Loss')
+    plt.ylabel('Loss/Ave q')
     plt.plot(loss_t.numpy())
 
 
