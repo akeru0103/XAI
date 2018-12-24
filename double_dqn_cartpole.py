@@ -1,5 +1,5 @@
 '''dqn settings'''
-EPISODE_NUMBER = 5000
+EPISODE_NUMBER = 100
 
 dqn_a = 4
 BATCH_SIZE = 128
@@ -64,6 +64,7 @@ if is_ipython:
 plt.ion()
 
 # if gpu is to be used
+#device = torch.device("cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #device:gpuとcpuのどちらを使うのか
 Transition = namedtuple('Transition',
@@ -385,14 +386,36 @@ def blend_save_movie(image_sequence1, image_sequence2, save_name, image_sequence
     movie[0].save('images/'+save_name+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
 '''ここまで未使用'''
 
-
+save_num = 0
 def save_ndarray_list(ndarray_list, save_name, save_type='npz'):
+    global save_num
+    print(' outputting '+save_name+f'{save_num:0=3}'+'.'+save_type+'...')
+    if os.path.exists(save_folder+'/files')==False:
+        os.mkdir(save_folder+'/files')
+    #filesフォルダの作成
+    np.savez_compressed(save_folder+'/files/'+save_name+f'{save_num:0=3}'+'.'+save_type, ndarray_list)
+    print(' finished')
+
+def save_list(list, save_name, save_type='npz'):
+    #global save_num
     print(' outputting '+save_name+'.'+save_type+'...')
     if os.path.exists(save_folder+'/files')==False:
         os.mkdir(save_folder+'/files')
     #filesフォルダの作成
-    np.savez_compressed(save_folder+'/files/'+save_name+'.'+save_type, ndarray_list)
+    np.savez_compressed(save_folder+'/files/'+save_name+'.'+save_type, list)
     print(' finished')
+
+def save_ndarrays():
+    if SALIENCY_SAVING == True:
+        global save_num
+        save_ndarray_list(input_sequence, 'input')
+        save_ndarray_list(saliency_map_sequence, 'saliency_map')
+        save_list(saved_episode, 'episodes')
+        save_list(saved_episode_rewards, 'rewards')
+        if SAVE_SCREEN==True:
+            save_ndarray_list(screen_sequence, 'screen')
+            save_ndarray_list(cart_location_sequence, 'cart_location')
+        save_num += 1
 
 def make_perturbed_image(image, perturbed_point, mask_sigma, blurred_sigma, save=False):
     #出力:perturbed_image(perturbed_point付近がぼやけた画像)(data:(色,縦,横), dtype:ndarray, shape:(3, hight of image, width of image), range:0~255　))
@@ -511,11 +534,12 @@ def get_input_position():
 num_episodes = EPISODE_NUMBER
 saliency_calcuration_rate = SALIENCY_ROUGHNESS
 
-
+'''
 saliency_map_sequence = []
 input_sequence = []
 screen_sequence = []
 cart_location_sequence = []
+'''
 saved_episode = []
 saved_episode_rewards = []
 ave=0
@@ -554,8 +578,13 @@ if SALIENCY_SAVING == True:
 for i_episode in range(num_episodes):
     #1エピソード開始
 
+    saliency_map_sequence = []
+    input_sequence = []
+    screen_sequence = []
+    cart_location_sequence = []
     #e_loss
     episode_loss = []
+    episode_aveq = []
     # Initialize the environment and state
     env.reset()
     #save_screen = False #初期値取得の時は保存しない
@@ -592,6 +621,7 @@ for i_episode in range(num_episodes):
                 screen_sequence.append(env.render(mode='rgb_array').transpose((2, 0, 1))/255)
                 cart_location_sequence.append(get_input_position())
 
+        episode_aveq.append(np.mean(policy_net(state).cpu().detach().numpy()))
         # Select and perform an action
         action = select_action(state)
         #action:0が左で1が右に動かす
@@ -625,27 +655,35 @@ for i_episode in range(num_episodes):
             average_of_reward.append(mean(episode_durations))
 
             if saliency_save_flag==True:
-
+                '''
                 saliency_map_sequence.append(np.full_like(saliency_map_sequence[0], -1))
                 input_sequence.append(np.full_like(input_sequence[0], -1))
                 if SAVE_SCREEN==True:
                     screen_sequence.append(np.full_like(screen_sequence[0], -1))
                     cart_location_sequence.append(-1)
                 #1エピソードの終わりに、-1で埋め尽くしたndarrayをいれる
+                '''
+                print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}'+' saliency was generated')
+
+
 
                 saved_episode.append(i_episode)
                 saved_episode_rewards.append(average_of_reward[-1])
-                print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}'+' saliency was generated')
+                save_ndarrays()
             else:
                 print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}')
             saliency_save_flag = decision_of_save(i_episode, average_of_reward, START_SAVE_FREQUENCY, START_DURATION, END_SAVE_FREQUENCY, END_DURATION)
-            ave_loss.append(mean(episode_loss)/(i_episode+1))
+            #print(episode_loss)
+            #print(episode_aveq)
+            #print(np.mean(np.array(episode_aveq)))
+            ave_loss.append(mean(episode_loss)/np.mean(np.array(episode_aveq)))
 
             if (i_episode+1) % 10 == 0:
                 plt.figure(2)
                 plt.savefig(save_folder+'/figure.png')
                 plt.figure(3)
                 plt.savefig(save_folder+'/loss.png')
+                '''
                 if SALIENCY_SAVING == True:
                     save_ndarray_list(input_sequence, 'input')
                     save_ndarray_list(saliency_map_sequence, 'saliency_map')
@@ -654,6 +692,7 @@ for i_episode in range(num_episodes):
                     if SAVE_SCREEN==True:
                         save_ndarray_list(screen_sequence, 'screen')
                         save_ndarray_list(cart_location_sequence, 'cart_location')
+                '''
 
                 print_time(start_time)
                 plot_durations()
@@ -689,6 +728,7 @@ with open(save_folder+'/result.txt', mode='w')as f:
 plt.savefig(save_folder+'/figure.png')
 
 if SALIENCY_SAVING == True:
+    '''
     save_ndarray_list(input_sequence, 'input')
     save_ndarray_list(saliency_map_sequence, 'saliency_map')
     save_ndarray_list(saved_episode, 'episodes')
@@ -696,6 +736,7 @@ if SALIENCY_SAVING == True:
     if SAVE_SCREEN==True:
         save_ndarray_list(screen_sequence, 'screen')
         save_ndarray_list(cart_location_sequence, 'cart_location')
+    '''
 
     print(' saving variables...')
     variables={"EPISODE_NUMBER":EPISODE_NUMBER, "SAVE_FREQUENCY":SAVE_FREQUENCY, "SALIENCY_ROUGHNESS":SALIENCY_ROUGHNESS, "SAVE_SCREEN":SAVE_SCREEN}
