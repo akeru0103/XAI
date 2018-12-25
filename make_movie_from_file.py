@@ -6,7 +6,7 @@ SALIENCY_MAP_RATE = 0.7
 CONTRAST_MAGNIFICATION = 2.5
 SALIENCY_MAX_COLOR = [0,0,255]
 SALIENCY_MIN_COLOR = [255,255,255]
-FRAME_LENGTH = 160
+FRAME_LENGTH = 120#160
 
 
 
@@ -199,9 +199,9 @@ def blend_save_movie_from_ndarray_different_size(image_sequence1, image_sequence
 
         #image1 = image1.resize(save_size1)
         #image2 = image2.resize(save_size2)
-        image2 = image2.resize( (int(image2.width), int(image2.height)) )
-        image1 = image1.resize( (320, 160) )
-        image1 = paste_image_to_background(image1, (image2.width,image2.height), (position_sequence[i]-160,160) )
+        image2 = image2.resize( (int(image2.width*expansion_rate), int(image2.height*expansion_rate)) )
+        image1 = image1.resize( (int(320*expansion_rate), int(160*expansion_rate)) )
+        image1 = paste_image_to_background(image1, (image2.width,image2.height), (int((position_sequence[i]-160)*expansion_rate),int(160*expansion_rate)) )
         image2 = Image.blend(image2, image1, image_sequence1_rate)
         image2 = ImageEnhance.Contrast(image2).enhance( contrast_rate/max(image_sequence1_rate,1-image_sequence1_rate) ) #2)
         movie.append( image2 )
@@ -457,10 +457,10 @@ def paste_image_to_background(image, background_size, paste_position):
     background.paste(image, paste_position)
     return background
 
-def save_movie_from_npz(npz_name, save_name, expansion_rate=1, data_type='npz'):
+def save_movie_from_npz(npz_name, save_name, expansion_rate=1, data_type='npz', frame_length=160):
     loaded_array = load_ndarray(npz_name)
     print('   saving '+save_name+'.gif...')
-    save_movie_from_ndarray(loaded_array, save_name, expansion_rate=expansion_rate)
+    save_movie_from_ndarray(loaded_array, save_name, expansion_rate=expansion_rate, frame_length=frame_length)
 
 def blend_save_movie_from_npz(npz_name1, npz_name2, save_name, expansion_rate=1, image1_rate=0.5, contrast_rate=1, save_type='gif', frame_length=160, loop=0, max_color1=[0,0,0], min_color1=[255,255,255], max_color2=[0,0,0], min_color2=[255,255,255]):
     loaded_array1 = load_ndarray(npz_name1)
@@ -475,7 +475,7 @@ def make_synthesis2_from_npz(saliency_map, screen, position, save_name, image1_r
     print('   saving '+save_name+'.gif...')
     blend_save_movie_from_ndarray_different_size(saliency_map, screen, position, save_name, image_sequence1_rate=image1_rate, contrast_rate=contrast_rate, save_type=save_type, frame_length=frame_length, loop=loop, max_color1=max_color1, min_color1=min_color1, max_color2=max_color2, min_color2=min_color2)
 
-def save_movies_from_npzs(npz_name, episode_number_ndarray, reward_ndarray, save_name, expansion_rate=1):
+def save_movies_from_npzs(npz_name, episode_number_ndarray, reward_ndarray, save_name, expansion_rate=1, frame_length=160):
     print(' saving '+save_name+'...')
     saved_episode = load_ndarray(episode_number_ndarray)
     reward_ndarray = load_ndarray(reward_ndarray)
@@ -487,7 +487,7 @@ def save_movies_from_npzs(npz_name, episode_number_ndarray, reward_ndarray, save
             break
         episode_num = str(saved_episode[i]).rjust(digit,'0')
         print('  No.'+f'{i:0=3}'+'...')
-        save_movie_from_npz(npz_name+f'{i:0=3}',save_name+' ,ep'+episode_num+' ,ave_rew'+f'{reward_ndarray[i]:.2f}', expansion_rate=expansion_rate)
+        save_movie_from_npz(npz_name+f'{i:0=3}',save_name+' ,ep'+episode_num+' ,ave_rew'+f'{reward_ndarray[i]:.2f}', expansion_rate=expansion_rate,frame_length=frame_length)
 
 def blend_save_movies_from_npzs(npz_name1, npz_name2, episode_number_ndarray, reward_ndarray, save_name, expansion_rate=1,  image1_rate=0.5, contrast_rate=1, frame_length=160, loop=0, max_color1=[0,0,0], min_color1=[255,255,255], max_color2=[0,0,0], min_color2=[255,255,255]):
     print(' saving '+save_name+'...')
@@ -543,11 +543,11 @@ if os.path.exists('results/result'+str(RESULT_NUMBER)+'/processed')==True:
 with open('results/result'+str(RESULT_NUMBER)+'/files/variables.pickle', mode='rb') as f:
     variables=pickle.load(f)
 
-save_movies_from_npzs('input','episodes','rewards','input',expansion_rate=8)
-blend_save_movies_from_npzs('saliency_map','input','episodes','rewards','synthesis', expansion_rate=8, loop=0, max_color1=SALIENCY_MAX_COLOR, min_color1=SALIENCY_MIN_COLOR, image1_rate=SALIENCY_MAP_RATE, contrast_rate=CONTRAST_MAGNIFICATION)
+save_movies_from_npzs('input','episodes','rewards','input',expansion_rate=8,frame_length=FRAME_LENGTH)
+blend_save_movies_from_npzs('saliency_map','input','episodes','rewards','synthesis', expansion_rate=8, loop=0, max_color1=SALIENCY_MAX_COLOR, min_color1=SALIENCY_MIN_COLOR, image1_rate=SALIENCY_MAP_RATE, contrast_rate=CONTRAST_MAGNIFICATION,frame_length=FRAME_LENGTH)
 if SAVE_SCREEN==True and variables["SAVE_SCREEN"]==True:
-    save_movies_from_npzs('screen','episodes','rewards','screen',expansion_rate=1)
-    make_synthesis2s_from_npzs('saliency_map','screen','cart_location','episodes','rewards','synthesis2', loop=0, max_color1=SALIENCY_MAX_COLOR, min_color1=SALIENCY_MIN_COLOR, image1_rate=SALIENCY_MAP_RATE, contrast_rate=CONTRAST_MAGNIFICATION)
+    save_movies_from_npzs('screen','episodes','rewards','screen',expansion_rate=1,frame_length=FRAME_LENGTH)
+    make_synthesis2s_from_npzs('saliency_map','screen','cart_location','episodes','rewards','synthesis2', loop=0, max_color1=SALIENCY_MAX_COLOR, min_color1=SALIENCY_MIN_COLOR, image1_rate=SALIENCY_MAP_RATE, contrast_rate=CONTRAST_MAGNIFICATION,frame_length=FRAME_LENGTH)
 
 '''
 input_sequence = load_ndarray('input')
