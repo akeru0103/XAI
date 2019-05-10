@@ -67,7 +67,6 @@ plt.ion()
 # if gpu is to be used
 #device = torch.device("cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#device:gpuとcpuのどちらを使うのか
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
@@ -125,9 +124,7 @@ def get_screen():
     screen = env.render(mode='rgb_array').transpose(
         (2, 0, 1))  # transpose into torch order (CHW)
     # Strip off the top and bottom of the screen
-    #screenという名のndarrayは3次元配列
-    #screenの各次元の要素数:(3,400,600)
-    #恐らく(色,縦,横),range:0~255
+
 
     '''
     if SAVE_SCREEN==True and save_screen==True and i_episode % SAVE_FREQUENCY==0:
@@ -135,11 +132,8 @@ def get_screen():
     '''
 
     screen = screen[:, 160:320]
-    #縦の、159以下と321以上を捨てる
-    #screenの各次元の要素数:(3,160,600)
 
     view_width = 320
-    #NNに入力する画像の幅
 
     cart_location = get_cart_location()
     if cart_location < view_width // 2:
@@ -149,11 +143,8 @@ def get_screen():
     else:
         slice_range = slice(cart_location - view_width // 2,
                             cart_location + view_width // 2)
-    # Strip off(はがす) the edges, so that we have a square image centered on a cart
+    # Strip off the edges, so that we have a square image centered on a cart
     screen = screen[:, :, slice_range]
-    #多分カートの左右160をスクリーンとして切り出している
-    #画面外に範囲がはみ出そうなら上記のようにうまくやっている
-    #screenの各次元の要素数:(3,160,320)
 
     # Convert to float, rescare, convert to torch tensor
     # (this doesn't require a copy)
@@ -163,15 +154,11 @@ def get_screen():
 
     # Resize, and add a batch dimension (BCHW)
     return resize(screen).unsqueeze(0).to(device)
-    #次元数1up([3, 160, 320]→[1, 3, 40, 80])
-    #screenの全要素数が153600→9600に変化
 
 env.reset()
 
 policy_net = DQN().to(device)
 q_ast = deepcopy(policy_net)
-#行動を決めるNNのオブジェクト
-#to(device)はgpuとcpuのどちらを使うのか
 print(policy_net)
 
 target_net = DQN().to(device)
@@ -188,15 +175,11 @@ def select_action(state):
     sample = random.random()
     eps_threshold = EPS_END + (EPS_START - EPS_END) * \
         math.exp(-1. * steps_done / EPS_DECAY)
-    #eps_threshold:ランダムに行動する確率
     steps_done += 1
     if sample > eps_threshold:
         with torch.no_grad():
 
-            #policy_net(state)は各行動のQ値を返す
             return policy_net(state).max(1)[1].view(1, 1)
-            #恐らく現在の状態をNNに入力し、出てきた出力をreturnしている
-            #恐らくreturnは行動(各行動の確率のベクトルではない)
     else:
         return torch.tensor([[random.randrange(2)]], device=device, dtype=torch.long)
 
@@ -298,17 +281,12 @@ def get_mask(center, size, r):
     return mask/mask.max()
 
 def save_image(image, save_name, save_type='png'):
-    #imageをファイルに保存する
-    #image:[色,縦,横]or[縦,横],range:0~1or0~255
     if image.max() <= 1:
         image = image*255
-    #rangeの調整
     if os.path.exists(save_folder+'/images')==False:
         os.mkdir(save_folder+'/images')
-    #imagesフォルダの作成
     if image.ndim==3:
         image = Image.fromarray(np.uint8(image.transpose(1, 2, 0)))
-        #保存は[縦,横,色],0~255
         image.save(save_folder+'/images/'+save_name+'.'+save_type)
     elif image.ndim==2:
         image_width = image.shape[1]
@@ -317,35 +295,25 @@ def save_image(image, save_name, save_type='png'):
         for i in range(3):
             output_image[:,:, i] = image
         image = Image.fromarray(np.uint8(output_image))
-        #保存は[縦,横,色],0~255
         image.save(save_folder+'/images/'+save_name+'.'+save_type)
 
 
-'''ここから'''
+
 def save_movie(image_sequence, save_name, save_size=(640,320), save_type='gif', frame_length=160, loop=0):
-    #image_sequence(ndarrayのリスト)から動画を作成し、ファイルに保存する
-    #image_sequence:[色,縦,横],range:0~1
-    #frame_length:1フレームあたりの表示する時間
-    #loop:何回ループするか,0だと無限ループ
 
     if os.path.exists('images')==False:
         os.mkdir('images')
-    #imagesフォルダの作成
+
 
     movie = []
     for i in range( len(image_sequence) ):
         movie.append( Image.fromarray(np.uint8(image_sequence[i]*255).transpose(1, 2, 0)))
         movie[i] = movie[i].resize(save_size)
 
-    #保存は[縦,横,色],0~255
+
     movie[0].save('images/'+save_name+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
 def blend_save_movie(image_sequence1, image_sequence2, save_name, image_sequence1_rate=0.5, contrast_rate=1, save_type='gif', frame_length=160, loop=0):
-    #image_sequence1,2(ndarrayのリスト)を合成した画像から動画を作成し、ファイルに保存する
-    #image_sequence:[色,縦,横],range:0~1
-    #image_sequence1_rate:大きくすると合成時、image_sequence1の影響が大きくなる,range:0~1
-    #contrast_rate:出力gifのコントラストをn倍する
-    #frame_length:1フレームあたりの表示する時間
-    #loop:何回ループするか,0だと無限ループ
+
 
     if len(image_sequence1)!=len(image_sequence2):
         print('error:blend_save_movie')
@@ -353,7 +321,7 @@ def blend_save_movie(image_sequence1, image_sequence2, save_name, image_sequence
 
     if os.path.exists('images')==False:
         os.mkdir('images')
-    #imagesフォルダの作成
+
 
     movie = []
     for i in range( len(image_sequence1) ):
@@ -365,9 +333,9 @@ def blend_save_movie(image_sequence1, image_sequence2, save_name, image_sequence
         image2 = ImageEnhance.Contrast(image2).enhance( contrast_rate/max(image_sequence1_rate,1-image_sequence1_rate) ) #2)
         movie.append( image2 )
 
-    #保存は[縦,横,色],0~255
+
     movie[0].save('images/'+save_name+'.'+save_type, save_all=True, append_images=movie[1:], optimize=False, duration=frame_length, loop=loop)
-'''ここまで未使用'''
+
 
 save_num = 0
 def save_ndarray_list(ndarray_list, save_name, save_type='npz'):
@@ -375,7 +343,7 @@ def save_ndarray_list(ndarray_list, save_name, save_type='npz'):
     print(' outputting '+save_name+f'{save_num:0=3}'+'.'+save_type+'...')
     if os.path.exists(save_folder+'/files')==False:
         os.mkdir(save_folder+'/files')
-    #filesフォルダの作成
+
     np.savez_compressed(save_folder+'/files/'+save_name+f'{save_num:0=3}'+'.'+save_type, ndarray_list)
     print(' finished')
 
@@ -384,7 +352,6 @@ def save_list(list, save_name, save_type='npz'):
     print(' outputting '+save_name+'.'+save_type+'...')
     if os.path.exists(save_folder+'/files')==False:
         os.mkdir(save_folder+'/files')
-    #filesフォルダの作成
     np.savez_compressed(save_folder+'/files/'+save_name+'.'+save_type, list)
     print(' finished')
 
@@ -401,12 +368,7 @@ def save_ndarrays():
         save_num += 1
 
 def make_perturbed_image(image, perturbed_point, mask_sigma, blurred_sigma, save=False):
-    #出力:perturbed_image(perturbed_point付近がぼやけた画像)(data:(色,縦,横), dtype:ndarray, shape:(3, hight of image, width of image), range:0~255　))
-    #image:(data:(色,縦,横), dtype:ndarray, shape:(3, :, :), range:0~255)
-    #perturbed_point:(data:(y座標, x座標))
-    #mask_sigma:マスク画像のσ
-    #blurred_sigma:ぼやかした画像のσ
-    #saveがTrueの時は各画像をファイルに保存
+
 
     image_width = image.shape[2]
     image_hight = image.shape[1]
@@ -436,13 +398,7 @@ def make_perturbed_image(image, perturbed_point, mask_sigma, blurred_sigma, save
     return image3
 
 def make_saliency_map(image, mask_sigma, blurred_sigma, decimation_rate):
-    #saliency_mapを作成(data:(色,縦,横), dtype:ndarray, shape:(3, hight of image, width of image), range:0~0.1　)
-    #image:入力画像(data(?, 色, 縦, 横), dtype:tensor, shape:(1, 3, :, :), range:0~1)
-    #mask_sigma:マスク画像のσ
-    #blurred_sigma:ぼやかした画像のσ
-    #decimation_rate:何ピクセルに一回saliencyを計算するか、大きくするとsaliency_mapが粗くなるが、計算が速くなる
-    #max_color:saliency_mapの色、saliency_scoreが最大になるときの色を指定する,[R,G,B],range:0~255
-    #min_color:saliency_mapの色、saliency_scoreが最小になるときの色を指定する,[R,G,B],range:0^255
+
 
     state_width = state.shape[3]
     state_hight = state.shape[2]
@@ -501,7 +457,6 @@ def make_lowest_folder():
 
 def get_input_position():
     view_width = 320
-    #NNに入力する画像の幅
 
     cart_location = get_cart_location()
     if cart_location < view_width // 2:
@@ -516,7 +471,6 @@ def save_model(model, save_name):
     print(' outputting '+save_name+'.pth...')
     if os.path.exists(save_folder+'/files')==False:
         os.mkdir(save_folder+'/files')
-    #filesフォルダの作成
     if os.path.exists(save_folder+'/files/'+save_name)==False:
         os.mkdir(save_folder+'/files/'+save_name)
 
@@ -562,7 +516,6 @@ with open(save_folder+'/files/variables.pickle', mode='wb') as f:
 print(' finished')
 
 for i_episode in range(num_episodes):
-    #1エピソード開始
     saliency_map_sequence = []
     input_sequence = []
     screen_sequence = []
@@ -583,20 +536,18 @@ for i_episode in range(num_episodes):
     ave_q.append(np.mean(policy_net(state).cpu().detach().numpy()))
 
 
-    #1ステップ目開始
     for t in count():
 
-        if msvcrt.kbhit(): # キーが押されているか
-            kb = msvcrt.getch() # 押されていれば、キーを取得する
+        if msvcrt.kbhit():
+            kb = msvcrt.getch()
             if kb.decode() == 'q' :
                 print('quit')
                 sys.exit()
 
-        #1エピソード目に行う処理
         if i_episode == 0 and t == 3:
             make_perturbed_image(state.squeeze().cpu().numpy(),(20,40),4,3,save=True)
             print(' filter images were saved')
-            #フィルターのサンプル画像を保存
+
 
         if saliency_save_flag == True: #i_episode=0,5,10...=1,6,11...エピソード目
             saliency_map_sequence.append( make_saliency_map(state, 4, 3, saliency_calcuration_rate ) )
@@ -608,7 +559,7 @@ for i_episode in range(num_episodes):
         episode_aveq.append(np.mean(policy_net(state).cpu().detach().numpy()))
         # Select and perform an action
         action = select_action(state)
-        #action:0が左で1が右に動かす
+
         _, reward, done, _ = env.step(action.item())
         reward = torch.tensor([reward], device=device)
 
@@ -629,7 +580,6 @@ for i_episode in range(num_episodes):
         # Perform one step of the optimization (on the target network)
         optimize_model()
 
-        #1エピソード終了時の動作
         if done:
             episode_durations.append(t + 1)
             ave = mean(episode_durations)
