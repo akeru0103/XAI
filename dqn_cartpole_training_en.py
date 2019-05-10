@@ -549,7 +549,7 @@ for i_episode in range(num_episodes):
             print(' filter images were saved')
 
 
-        if saliency_save_flag == True: #i_episode=0,5,10...=1,6,11...エピソード目
+        if saliency_save_flag == True: 
             saliency_map_sequence.append( make_saliency_map(state, 4, 3, saliency_calcuration_rate ) )
             input_sequence.append( current_screen.cpu().numpy().squeeze() )
             if SAVE_SCREEN==True:
