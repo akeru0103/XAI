@@ -340,11 +340,11 @@ def blend_save_movie(image_sequence1, image_sequence2, save_name, image_sequence
 save_num = 0
 def save_ndarray_list(ndarray_list, save_name, save_type='npz'):
     global save_num
-    print(' outputting '+save_name+f'{save_num:0=3}'+'.'+save_type+'...')
+    #print(' outputting '+save_name+f'{save_num:0=3}'+'.'+save_type+'...')
     if os.path.exists(save_folder+'/files')==False:
         os.mkdir(save_folder+'/files')
 
-    np.savez_compressed(save_folder+'/files/'+save_name+f'{save_num:0=3}'+'.'+save_type, ndarray_list)
+    #np.savez_compressed(save_folder+'/files/'+save_name+f'{save_num:0=3}'+'.'+save_type, ndarray_list)
     print(' finished')
 
 def save_list(list, save_name, save_type='npz'):
@@ -586,12 +586,12 @@ for i_episode in range(num_episodes):
             average_of_reward.append(mean(episode_durations))
 
             if saliency_save_flag==True:
-                print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}'+' saliency was generated')
+                #print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}'+' saliency was generated')
                 saved_episode.append(i_episode)
                 saved_episode_rewards.append(average_of_reward[-1])
                 save_ndarrays()
             else:
-                print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}')
+                #print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}')
             saliency_save_flag = decision_of_save(i_episode, average_of_reward, START_SAVE_FREQUENCY, START_DURATION, END_SAVE_FREQUENCY, END_DURATION)
 
             ave_loss.append(mean(episode_loss)/np.mean(np.array(episode_aveq)))
