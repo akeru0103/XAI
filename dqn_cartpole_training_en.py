@@ -388,12 +388,12 @@ def make_perturbed_image(image, perturbed_point, mask_sigma, blurred_sigma, save
 
     if save==True:
         save_image(image, 'input_image')
-        save_image(mask, 'mask_image'+str(perturbed_point)+',σ='+str(mask_sigma))
-        save_image(1-mask, '1-mask_image'+str(perturbed_point)+',σ='+str(mask_sigma))
-        save_image(image1, 'input(1-mask_image)'+str(perturbed_point)+',σ='+str(mask_sigma))
-        save_image(image2, 'blurred_image_mask_image,σa='+str(blurred_sigma))
-        save_image(image3, 'perturbed_image'+str(perturbed_point)+',σ='+str(mask_sigma)+',σa='+str(blurred_sigma))
-        save_image(blurred_frame, 'blurred_frame,σa='+str(blurred_sigma))
+        save_image(mask, 'mask_image'+str(perturbed_point)+',s='+str(mask_sigma))
+        save_image(1-mask, '1-mask_image'+str(perturbed_point)+',s='+str(mask_sigma))
+        save_image(image1, 'input(1-mask_image)'+str(perturbed_point)+',s='+str(mask_sigma))
+        save_image(image2, 'blurred_image_mask_image,sa='+str(blurred_sigma))
+        save_image(image3, 'perturbed_image'+str(perturbed_point)+',s='+str(mask_sigma)+',sa='+str(blurred_sigma))
+        save_image(blurred_frame, 'blurred_frame,sa='+str(blurred_sigma))
 
     return image3
 
