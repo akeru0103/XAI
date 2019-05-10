@@ -549,7 +549,7 @@ for i_episode in range(num_episodes):
             print(' filter images were saved')
 
 
-        if saliency_save_flag == True: 
+        if saliency_save_flag == True:
             saliency_map_sequence.append( make_saliency_map(state, 4, 3, saliency_calcuration_rate ) )
             input_sequence.append( current_screen.cpu().numpy().squeeze() )
             if SAVE_SCREEN==True:
@@ -590,7 +590,7 @@ for i_episode in range(num_episodes):
                 saved_episode.append(i_episode)
                 saved_episode_rewards.append(average_of_reward[-1])
                 save_ndarrays()
-            else:
+            #else:
                 #print(' episode: '+str(i_episode)+' / '+str(EPISODE_NUMBER-1)+', reward: '+str(t+1)+', average/ave_max: '+f'{ave:.2f}'+'/'+f'{ave_max:.2f}')
             saliency_save_flag = decision_of_save(i_episode, average_of_reward, START_SAVE_FREQUENCY, START_DURATION, END_SAVE_FREQUENCY, END_DURATION)
 
