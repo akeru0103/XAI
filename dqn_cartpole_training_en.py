@@ -52,8 +52,6 @@ import pickle
 from statistics import mean
 import datetime
 import time
-import msvcrt
-import sys
 
 env = gym.make('CartPole-v0').unwrapped
 
@@ -538,11 +536,6 @@ for i_episode in range(num_episodes):
 
     for t in count():
 
-        if msvcrt.kbhit():
-            kb = msvcrt.getch()
-            if kb.decode() == 'q' :
-                print('quit')
-                sys.exit()
 
         if i_episode == 0 and t == 3:
             make_perturbed_image(state.squeeze().cpu().numpy(),(20,40),4,3,save=True)
